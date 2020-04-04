@@ -1,0 +1,161 @@
+---
+title: 'FIN580: Midterm'
+author: "Chris, Utsav, Srishti"
+date: "Spring 2020"
+output:
+  html_document:
+    df_print: paged
+    toc: no
+    toc_depth: 4
+  word_document:
+    toc: no
+    toc_depth: '4'
+  pdf_document:
+    fig_caption: yes
+    toc: no
+    toc_depth: 4
+geometry: margin=1.5in
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.align="center", fig.height=5.5, fig.width=6, collapse=TRUE, comment="", prompt=TRUE, echo = TRUE, cache=TRUE, autodep=TRUE, cache.comments=FALSE)
+options(width=63)
+```
+
+--------
+
+# Objective
+
+To forecast daily volatilities of major stock indexes after the COVID-19 outbreak and provide risk measures than can help portfolio managers to make investment decisions during this turbulent period.
+
+--------
+
+# Data Preparation
+
+I use the following libraries and set my working directory.
+```{r eval = F}
+library('fasttime')
+library('data.table')
+library('dplyr')
+library('matrixStats')
+library('bit64')
+library('ggplot2')
+library('gdata')
+library('naniar')
+library('mice')
+library('forecast')
+library('imputeTS')
+setwd("/Users/srishtisingla/Downloads")
+```
+
+
+```{r eval = F}
+data = read.xls('data.xlsx')  
+summary(data)
+```
+
+```{r eval = F}
+#transforming data to get value for each security as a column
+grid <- as.data.frame(as.character(unique(data$X)))
+names(grid) <- "X"
+symbols <- as.character(unique(data$Symbol))
+for (i in 1:length(symbols)){
+  mergewith <- data[as.character(data$Symbol)==symbols[i],-c(2)]
+  names(mergewith) <- c("X",paste0("open",symbols[i]),paste0("close",symbols[i]),paste0("rv",symbols[i]))
+  grid <- merge(grid,mergewith, by=c("X"), all = TRUE )
+}
+# grid has 5303 rows, and 94 columns
+
+sample <- grid[2625:5303,]
+# 2679 rows to get data starting from 2010 (we need to choose this carefully)
+```
+
+```{r eval = F}
+col <- c(1, seq(from=2, to=92, by = 3))
+vis_miss(sample[,col]) # total 6.7% missing data, most for BVLG and STI
+gg_miss_var(sample[,col])
+```
+
+```{r fig.width=10, fig.height=5,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("missingdata.png")
+ grid.raster(img)
+```
+
+```{r fig.width=5, fig.height=5,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("missingcount.png")
+ grid.raster(img)
+```
+
+## Different ways of dealing with missing data
+
+**Linear interpolation**
+
+```{r eval = F}
+linear_imputed_data <- na_interpolation(sample, option = "linear") 
+```
+
+**Spline interpolation**
+
+```{r eval = F}
+spline_imputed_data <- na_interpolation(sample, option = "spline") 
+```
+
+To visualize what's happening-
+
+Want to see what happens in case of an index like AORD
+
+```{r eval = F}
+plotNA.imputations(sample$open.AORD[1:300], linear_imputed_data$open.AORD[1:300])
+```
+
+```{r fig.width=3.5, fig.height=3,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("AORDlinear.png")
+ grid.raster(img)
+```
+
+```{r eval = F}
+plotNA.imputations(sample$open.AORD[1:300], spline_imputed_data$open.AORD[1:300])
+```
+
+```{r fig.width=3.5, fig.height=3,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("AORDspline.png")
+ grid.raster(img)
+```
+
+For STI which has a lot of missing data in the beginning itself what do the two models do-
+
+(The linear method basically fills one value for them all whereas spline does not)
+
+```{r eval = F}
+plotNA.imputations(sample$open.STI[1000:1800], linear_imputed_data$open.STI[1000:1800])
+```
+
+```{r fig.width=3.5, fig.height=3,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("STIlinear.png")
+ grid.raster(img)
+```
+
+```{r eval = F}
+plotNA.imputations(sample$open.STI[1000:1800], spline_imputed_data$open.STI[1000:1800])
+```
+
+```{r fig.width=3.5, fig.height=3,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("STIspline.png")
+ grid.raster(img)
+```
+
+
