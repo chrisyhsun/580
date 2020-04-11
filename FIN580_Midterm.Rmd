@@ -55,9 +55,29 @@ library('grid')
 Our dataset has values for daily open, close and RV for 31 indices. 
 
 ```{r read_data}
-data <- fread('data.csv')
+data <- fread('data/data1104.csv')
 summary(data)
 ```
+
+```{r checking_time}
+times <- substr(data$Date, 12, nchar(data$Date))
+unique_times <- unique(times)
+dates1 <- unique(substr(data[substr(Date, 12, 26) == unique_times[1]]$Date, 1, 10))
+dates2 <- unique(substr(data[substr(Date, 12, 26) == unique_times[2]]$Date, 1, 10))
+intersect(dates1, dates2) # returns character(0), so can drop times
+```
+
+```{r checking_unique_symbols}
+symbols <- unlist(unique(data[, "Symbol"]))
+for (sym in symbols) {
+  subset_dates <- data["Symbol" == sym, "Date"]
+  if (length(subset_dates) != length(unique(subset_dates))) {
+    print(sym) 
+  }
+}
+print("Done")
+```
+
 
 We first transform our data to show these values as columns (three for each index) such that each row corresponds to a unique day.
 
