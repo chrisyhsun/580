@@ -16,7 +16,7 @@ output:
     toc_depth: 4
 geometry: margin=1.5in
 editor_options:
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -35,7 +35,7 @@ To forecast daily volatilities of major stock indexes after the COVID-19 outbrea
 # Data Preparation
 
 I use the following libraries and set my working directory.
-```{r eval=FALSE, warning=FALSE, error=FALSE}
+```{r warning=FALSE, error=FALSE}
 library('fasttime')
 library('data.table')
 library('dplyr')
@@ -48,18 +48,20 @@ library('mice')
 library('forecast')
 library('imputeTS')
 library('zoo')
+library('png')
+library('grid')
 ```
 
 Our dataset has values for daily open, close and RV for 31 indices. 
 
-```{r read_data, eval=FALSE}
+```{r read_data}
 data <- fread('data.csv')
 summary(data)
 ```
 
 We first transform our data to show these values as columns (three for each index) such that each row corresponds to a unique day.
 
-```{r transform_data, eval=FALSE}
+```{r transform_data}
 #transforming data to get value for each security as a column
 grid <- as.data.frame(as.character(unique(data$Date)))
 names(grid) <- "Date"
@@ -74,6 +76,9 @@ for (i in 1:length(symbols)){
 
 sample <- grid[2625:5303,]
 # 2679 rows to get data starting from 2010 (we need to choose this carefully)
+
+open_col_names <- colnames(grid[, seq(from=2, to=92, by = 3)])
+index_names <- substr(open_col_names, 6, nchar(open_col_names))
 ```
 
 ```{r na_data_function, cache=TRUE}
@@ -89,24 +94,22 @@ head(sample[, 1:7])
 
 Checking how much data is missing-
 
-```{r eval=FALSE}
+```{r}
 col <- c(1, seq(from=2, to=92, by = 3))
 vis_miss(sample[,col]) # total 6.7% missing data, most for BVLG and STI
 gg_miss_var(sample[,col])
 ```
 
 ```{r fig.width=10, fig.height=7,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/missingdata.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
 ```{r fig.width=5, fig.height=3.5,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/missingcount.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
 Also, we check what are the sizes of continuous gaps of data. The max continuous gaps as we already know are for BVLG and STI in the begining of the data. Apart from that the gap range is at max 5.
@@ -115,66 +118,80 @@ Also, we check what are the sizes of continuous gaps of data. The max continuous
 
 **Linear interpolation**
 
-```{r eval=FALSE}
+```{r}
 linear_imputed_data <- na_interpolation(sample, option = "linear") 
 ```
 
 **Spline interpolation**
 
-```{r eval=FALSE}
+```{r}
 spline_imputed_data <- na_interpolation(sample, option = "spline") 
+```
+
+```{r}
+constant_imputed_data <- na.locf(sample, na.rm=FALSE)
 ```
 
 To visualize what's happening-
 
 Want to see what happens in case of an index like AORD
 
-```{r eval=FALSE}
+```{r}
 plotNA.imputations(sample$open.AORD[1:300], linear_imputed_data$open.AORD[1:300])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/AORDlinear.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
-```{r eval=FALSE}
+```{r}
 plotNA.imputations(sample$open.AORD[1:300], spline_imputed_data$open.AORD[1:300])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/AORDspline.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
-For STI which has a lot of missing data in the beginning itself what do the two models do-
+Constant Imputation
 
-(The linear method basically fills one value for them all whereas spline does not)
+```{r}
+plotNA.imputations(sample$open.AORD[1:300], constant_imputed_data$open.AORD[1:300])
+```
 
-```{r eval=FALSE}
+```{r fig.width=3.5, fig.height=3,echo=FALSE}
+img <- readPNG("img/AORDconstant.png")
+grid.newpage()
+grid.raster(img)
+```
+
+For STI which has a lot of missing data in the beginning itself what do the three models do-
+
+(The linear method basically fills one value for them all whereas spline does not, constant doesn't fill in any data.)
+
+```{r}
 plotNA.imputations(sample$open.STI[1000:1800], linear_imputed_data$open.STI[1000:1800])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/STIlinear.png")
- grid.raster(img)
+grid.raster(img)
 ```
 
-```{r eval=FALSE}
+```{r}
 plotNA.imputations(sample$open.STI[1000:1800], spline_imputed_data$open.STI[1000:1800])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/STIspline.png")
- grid.raster(img)
+grid.raster(img)
+```
+
+```{r}
+plotNA.imputations(sample$open.STI[1000:1800], constant_imputed_data$open.STI[1000:1800])
 ```
 
 Linear interploation looks a like a good way of dealing with missing data. 
@@ -183,7 +200,7 @@ Linear interploation looks a like a good way of dealing with missing data.
 
 As RVs are generally consistent over time, using lagged values as a variable would be a good idea. Here are the autocorrelation charts for each of the RV series-
 
-```{r eval=FALSE}
+```{r}
 par(mfrow=c(4,4))
 col <- seq(from=52, to=94, by = 3)
 for (j in col){
@@ -192,40 +209,69 @@ for (j in col){
 ```
 
 ```{r fig.width=7, fig.height=4,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/acf1.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
 ```{r fig.width=7, fig.height=4,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/acf2.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
 We would also be interested in seeing how the cross rv terms relate. As the interactions would be large (31C2 i.e. 465 terms), one of the ways that we decided to look at is average correlation over time using 500 values in each window. (Let us remove BVLG, FTMIB, STI and remove 1152 intial rows (now data starts from roughly Oct 2005) as their std would be zero when a constant value is imputed)
 
 
-```{r eval=FALSE}
+```{r}
 col <- seq(from=4, to=94, by = 3)
 rvs <- na_interpolation(grid[1512:5303,col], option = "linear") 
 rvs <- rvs[,-c(5,9,30)]
 covars <- c()
-for (i in 1:3293){
-  sub <- rvs[i:(499+i),]
+window <- 500
+for (i in 1:(nrow(rvs)-(window-1))){
+  sub <- rvs[i:(window-1+i),]
   mean_cor <- mean(cor(sub))
   covars <- c(covars, mean_cor)
 }
-plot(as.Date(grid$X[2011:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 500 days Correlation") # roughly starting from Sept, 2007
+plot(as.Date(grid$Date[2011:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 500 days Correlation") # roughly starting from Sept, 2007
 ```
 
 ```{r fig.width=7, fig.height=5,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/correlation.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
+```
+
+*90 day running correlation (linear)*
+
+```{r}
+col <- seq(from=4, to=94, by = 3)
+rvs <- na_interpolation(grid[1512:5303,col], option = "linear") 
+rvs <- rvs[,-c(5,9,30)]
+covars <- c()
+window <- 90
+for (i in 1:(nrow(rvs)-(window-1))){
+  sub <- rvs[i:(window-1+i),]
+  mean_cor <- mean(cor(sub))
+  covars <- c(covars, mean_cor)
+}
+plot(as.Date(grid$Date[1601:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 90 days Correlation") # roughly starting from Sept, 2007
+```
+
+
+```{r}
+col <- seq(from=4, to=94, by = 3)
+rvs <- na.locf(grid[1512:5303,col], na.rm=FALSE) 
+rvs <- rvs[,-c(5,9,30)]
+covars <- c()
+window <- 90
+for (i in 1:(nrow(rvs)-(window-1))){
+  sub <- rvs[i:(window-1+i),]
+  mean_cor <- mean(cor(sub))
+  covars <- c(covars, mean_cor)
+}
+plot(as.Date(grid$Date[1601:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 90 days Correlation") # roughly starting from Sept, 2007
 ```
 
 This variable could be used for switching between models as when market is in distress, correlations tend to peak and maybe a different model from usual could be suggested.
@@ -238,10 +284,11 @@ Maybe like NVIX or Economic Uncertainity Data (It is however only mothly and las
 
 We calculate daily standardized returns and check for their normality using Shapiro-Wilk Normality Test. If p-value given by the test is greater than 0.05 then we can not reject the normality assumption.
 
-```{r eval=FALSE}
+```{r}
 #grid
 col <- seq(from=2, to=92, by = 3)
-pval <- c()
+pvalsw <- c()
+pvaljb <- c()
 for (x in col){
   sub <- grid[,c(x,x+1,x+2)]
   eps <- log(sub[,1]/sub[,2])/sqrt(sub[,3])
@@ -250,8 +297,9 @@ for (x in col){
     eps <- tail(eps, 5000)
   }
   a <- shapiro.test(eps)
-  pval <- c(pval, a$p.value)
-  
+  b <- jarque.bera.test(eps)
+  pvalsw <- c(pvalsw, a$p.value)
+  pvaljb <- c(pvaljb, b$p.value)
   #qqnorm(eps)
   #abline(0,1)
   
@@ -267,12 +315,33 @@ for (x in col){
 
 At 5% significance level, we have to reject the null hypothesis (that the data is normal) for 24 out of 31 indices.
 
+```{r}
+plot(pvalsw, main="P-values for different Indices - SW", ylab='p value')
+abline(h=0.05, lty=2, col='red')
+```
 
 ```{r fig.width=5, fig.height=4,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/pvalue.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
+```
+
+```{r}
+plot(pvaljb, main="P-values for different Indices - JB", ylab='p value')
+abline(h=0.05, lty=2, col='red')
+```
+
+Plotting both p-values together
+```{r}
+plot(pvalsw, pvaljb)
+abline(h=0.05, lty=2, col='red')
+abline(v=0.05, lty=2, col='red')
+```
+
+So the two tests agree on all indices but one:
+```{r}
+print(which(pvalsw > 0.05))
+print(which(pvaljb > 0.05))
 ```
 
 # Building Baseline models
@@ -281,23 +350,23 @@ We want to start the forecasts from February 1st, 2020.
 
 a) Random Walk: For predicting value at time t, use the value at time t-1.
 
-```{r eval=FALSE}
+```{r}
 col <- c(1,seq(from=4, to=94, by = 3))
-sample$X <- as.Date(sample$X)
-testdata <- sample[year(sample$X)==2020,]
+sample$Date <- as.Date(sample$Date)
+testdata <- sample[year(sample$Date)==2020,]
 
 #rv_actual has NAs, the idea would be to not make any predictions for those
-rv_actual <- testdata[month(testdata$X)>=2,col ]
+rv_actual <- testdata[month(testdata$Date)>=2,col ]
 
 #forward filling data so that we look at the most recent available value
 rv_for_pred <- na.locf(na.locf(testdata[,col]), fromLast = TRUE)
-rv_for_pred$X <- shift(rv_for_pred$X , -1)
+rv_for_pred$Date <- shift(rv_for_pred$Date , -1)
 
 #par(mfrow=c(3,3))
 mse <- c()
 for (s in 2:32){
   pick <- na.omit(rv_actual[,c(1,s)])
-  pred <- merge(pick,rv_for_pred[,c(1,s)], by=c("X"))
+  pred <- merge(pick,rv_for_pred[,c(1,s)], by=c("Date"))
   #plot((pred[,2]- pred[,3])^2)
   mse <- c(mse, mean((pred[,2]- pred[,3])^2))
 }
@@ -306,15 +375,14 @@ plot(mse, main="Mse for each index with Random Walk Predcitions")
 ```
 
 ```{r fig.width=5, fig.height=4,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/randomMSE.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
 b) Heterogeneous Autoregressive (HAR) model: We can use 200 days (to account for recency) rolling window for our predictions?
 
-```{r eval=FALSE}
+```{r}
 col <- c(1,seq(from=4, to=94, by = 3))
 traindata <- na.locf(na.locf(tail(sample[,col], 1000)), fromLast = TRUE)
 mean5 <- as.data.frame(rollmean(zoo(traindata[, -c(1)]), 5))
@@ -350,17 +418,15 @@ plot(mse_har, main="Mse for each index with HAR Predictions")
 ```
 
 ```{r fig.width=5, fig.height=4,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/msehar.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
 
 Comparing HAR mse (black) with Random Walk MSE (red) - in this case Random Walk does better.
 
 ```{r fig.width=5, fig.height=4,echo=FALSE}
-library(png)
-library(grid)
 img <- readPNG("img/mse2.png")
- grid.raster(img)
+grid.newpage()
+grid.raster(img)
 ```
