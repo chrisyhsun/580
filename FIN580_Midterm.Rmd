@@ -55,7 +55,7 @@ library('grid')
 Our dataset has values for daily open, close and RV for 31 indices. 
 
 ```{r read_data}
-data <- fread('data/data1104.csv')
+data <- fread('data/data.csv')
 summary(data)
 ```
 
@@ -92,13 +92,12 @@ for (i in 1:length(symbols)){
   names(mergewith) <- c("Date", paste0("open",symbols[i]), paste0("close",symbols[i]), paste0("rv",symbols[i]))
   grid <- merge(grid, mergewith, by=c("Date"), all = TRUE )
 }
-# grid has 5303 rows, and 94 columns
+# grid has 5319 rows, and 94 columns
 
 sample <- grid[2625:5303,]
 # 2679 rows to get data starting from 2010 (we need to choose this carefully)
 
-open_col_names <- colnames(grid[, seq(from=2, to=92, by = 3)])
-index_names <- substr(open_col_names, 6, nchar(open_col_names))
+index_names <- substr(symbols, 2, nchar(symbols))
 ```
 
 ```{r na_data_function, cache=TRUE}
