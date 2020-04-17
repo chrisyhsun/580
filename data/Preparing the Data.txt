@@ -1,0 +1,10 @@
+Instructions on updating the data:
+
+1) Download the latest file from https://realized.oxford-man.ox.ac.uk/data.
+2) Delete all columns but open_prices, close_prices, rv5
+3) Download extra days data from Yahoo Finance for SPX and IBEX.
+4) Paste this data into the "*_processed.xlsx" files, and calculate the RR as shown.
+   Convert the dates into the required Oxford-Man data format, and append "00:00:00+00:00:00" to the date.
+5) Paste these new rows into "data.csv", and sort by (Symbol, Date).
+6) Open the "FIN580_data_prep.Rmd" file and run the cells individually, confirming that the sanity checks mentioned hold.
+7) If all the checks hold, run the last cell to generate a new "data.csv".

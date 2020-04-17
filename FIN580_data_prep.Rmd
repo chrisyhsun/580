@@ -1,0 +1,93 @@
+---
+title: "Fixing Data"
+output: html_notebook
+---
+
+Read in data and split into two parts
+
+```{r}
+library(data.table)
+```
+
+
+```{r}
+data <- fread('data/data.csv')
+data1 <- data[!Symbol %in%  c(".SPX", ".IBEX")]
+data_spx <- data[Symbol == ".SPX"]
+data_ibex <- data[Symbol == ".IBEX"]
+```
+
+Check data1 has a clean split betwee "00:00:00" and "00:01:00" (should return character(0)).
+
+```{r}
+times <- substr(data1$Date, 12, nchar(data1$Date))
+unique_times <- unique(times)
+dates1 <- unique(substr(data1[substr(Date, 12, 26) == unique_times[1]]$Date, 1, 10))
+dates2 <- unique(substr(data1[substr(Date, 12, 26) == unique_times[2]]$Date, 1, 10))
+intersect(dates1, dates2)
+```
+
+Fix dates on SPX.
+
+First confirm that all dates for SPX are of the format "00:00:00" and are unique.
+```{r}
+print(length(data_spx$Date) == length(unique(data_spx$Date)))
+```
+
+```{r}
+spx_dates <- unique(substr(data_spx$Date, 1, 10))
+spx_proper_format <- rep(0, length(spx_dates))
+for (i in 1:length(spx_dates)) {
+  curr_date <- spx_dates[i]
+  if (curr_date %in% dates2) {
+    spx_proper_format[i] <- paste(curr_date, unique_times[2])
+  }
+  else {
+    spx_proper_format[i] <- paste(curr_date, unique_times[1])
+  }
+}
+
+data[Symbol == ".SPX"]$Date <- spx_proper_format
+```
+
+Fix dates on IBEX.
+
+First confirm that all dates are unique.
+
+```{r}
+print(length(data_ibex$Date) == length(unique(data_ibex$Date)))
+```
+
+
+```{r}
+ibex_dates <- unique(substr(data_ibex$Date, 1, 10))
+ibex_proper_format <- rep(0, length(ibex_dates))
+for (i in 1:length(ibex_dates)) {
+  curr_date <- ibex_dates[i]
+  if (curr_date %in% dates2) {
+    ibex_proper_format[i] <- paste(curr_date, unique_times[2])
+  }
+  else {
+    ibex_proper_format[i] <- paste(curr_date, unique_times[1])
+  }
+}
+
+data[Symbol == ".IBEX"]$Date <- ibex_proper_format
+```
+
+Confirmed it worked.
+
+```{r}
+times <- substr(data$Date, 12, nchar(data$Date))
+unique_times <- unique(times)
+dates1 <- unique(substr(data[substr(Date, 12, 26) == unique_times[1]]$Date, 1, 10))
+dates2 <- unique(substr(data[substr(Date, 12, 26) == unique_times[2]]$Date, 1, 10))
+intersect(dates1, dates2)
+```
+
+Write to file.
+
+```{r}
+write.csv(data, "data/data.csv", row.names=FALSE)
+```
+
