@@ -50,6 +50,8 @@ library('imputeTS')
 library('zoo')
 library('png')
 library('grid')
+library('HDeconometrics')
+library('tictoc')
 ```
 
 Our dataset has values for daily open, close and RV for 31 indices. 
@@ -111,7 +113,25 @@ count_col_na <- function(data) {
 head(sample[, 1:7])
 ```
 
+
 Checking how much data is missing-
+```{r}
+col <- seq(from=2, to=92, by = 3)
+sample2 <- sample[, col]
+colnames(sample2) <- index_names
+rownames(sample2) <- substr(sample$Date, 1, 10)
+```
+
+```{r}
+index <- seq(2, nrow(sample), 500)
+date_labels <- substr(sample$Date[index], 1, 10)
+
+vis_miss(sample2, show_perc_col=FALSE) +
+  theme(axis.text.x = element_text(angle=90)) +
+  scale_y_continuous(breaks = index, labels=date_labels) +
+  theme(axis.text.y = element_text(angle=45)) + 
+  ylab("Date")
+```
 
 ```{r}
 col <- c(1, seq(from=2, to=92, by = 3))
@@ -132,6 +152,13 @@ grid.raster(img)
 ```
 
 Also, we check what are the sizes of continuous gaps of data. The max continuous gaps as we already know are for BVLG and STI in the begining of the data. Apart from that the gap range is at max 5.
+
+Dates where no data is missing
+```{r}
+ind <- which(rowSums(is.na(grid)) == 0)
+grid$Date[ind]
+```
+
 
 ## Different ways of dealing with missing data
 
@@ -156,7 +183,8 @@ To visualize what's happening-
 Want to see what happens in case of an index like AORD
 
 ```{r}
-plotNA.imputations(sample$open.AORD[1:300], linear_imputed_data$open.AORD[1:300])
+plotNA.imputations(sample$open.AORD[1:300], linear_imputed_data$open.AORD[1:300], ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/6, 2/6, 3/6, 4/6, 5/6 ,1), labels=substr(sample$Date[c(1, 50, 100, 150, 200, 250, 300)], 1, 7), las=0)
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
@@ -166,7 +194,7 @@ grid.raster(img)
 ```
 
 ```{r}
-plotNA.imputations(sample$open.AORD[1:300], spline_imputed_data$open.AORD[1:300])
+plotNA.imputations(sample$open.AORD[1400:1800], spline_imputed_data$open.AORD[1400:1800])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
@@ -192,7 +220,7 @@ For STI which has a lot of missing data in the beginning itself what do the thre
 (The linear method basically fills one value for them all whereas spline does not, constant doesn't fill in any data.)
 
 ```{r}
-plotNA.imputations(sample$open.STI[1000:1800], linear_imputed_data$open.STI[1000:1800])
+plotNA.imputations(sample$open.STI[1400:1800], linear_imputed_data$open.STI[1400:1800])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
@@ -201,7 +229,7 @@ grid.raster(img)
 ```
 
 ```{r}
-plotNA.imputations(sample$open.STI[1000:1800], spline_imputed_data$open.STI[1000:1800])
+plotNA.imputations(sample$open.STI[1400:1800], spline_imputed_data$open.STI[1400:1800])
 ```
 
 ```{r fig.width=3.5, fig.height=3,echo=FALSE}
@@ -449,3 +477,64 @@ img <- readPNG("img/mse2.png")
 grid.newpage()
 grid.raster(img)
 ```
+
+```{r}
+realized_covariances <- fread('data/final_data.csv')
+realized_covariances <- realized_covariances[, -c("V1", "Date", "covars")]
+realized_covariances <- realized_covariances[, c(seq(3, 93, 3))]
+```
+
+```{r}
+make_lagged_dataset <- function(lag) {
+  n_rows <- nrow(realized_covariances) - lag
+  
+  x <- c()
+  y <- realized_covariances[(lag+1):nrow(realized_covariances), ]
+  
+  for (i in 1:lag) {
+    x <- cbind(x, realized_covariances[(lag+1-i):(nrow(realized_covariances)-i), ])   
+  }
+ 
+  return (list(x, y)) 
+}
+
+lagged_dataset <- make_lagged_dataset(3)
+x <- lagged_dataset[[1]]
+y <- lagged_dataset[[2]]
+```
+
+```{r}
+window_length <- 90
+n_windows <- nrow(x) - window_length + 1
+
+coef_arr <- c()
+
+# For each realized covariance, train a LASSO model
+for (i in 1:31) {
+  coefs <- c()
+  for (j in 1:n_windows) {
+    x_data <- x[j:(j+window_length-1),]
+    y_data <- unlist(y[j:(j+window_length-1), ..i])
+    
+    lasso <- ic.glmnet(x_data, y_data, crit="aic")
+    # size of coefs: no. of covariates * no. of windows
+    # Stores the lasso coefficients for every windows
+    coefs <- cbind(coefs, coef(lasso))
+  }
+  # coef_arr stores coefs for each of the 31 dependent variables
+  coef_arr[[i]] <- coefs
+}
+
+# Calculate the proportion of beta assigned to each predictor
+coef_arr_norm <- c()
+for (i in 1:31) {
+  coefs <- coef_arr[[i]]
+  # normalized_coefs is also of size no. of covariates * no. of windows
+  # except that every column has been normalized to add up to 1
+  normalized_coefs <- abs(coefs) %*% diag(1/colSums(abs(coefs)))
+  # Take average across all windows to get vector of length no. of covariates
+  # representing average proportion of beta on each covariate.
+  coef_arr_norm[[i]] <- rowMeans(normalized_coefs)
+}
+```
+
