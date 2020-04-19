@@ -7,7 +7,7 @@ get_inter_cluster_dists <- function(centers) {
       toRet <- toRet + (dist(rbind(centers[i,], centers[j,]))^2)
     }
   }
-  return(mean(toRet) / nrow(centers))
+  return(mean(toRet) / length(toRet))
 }
 
 elbow_scores <- c()
