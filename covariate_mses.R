@@ -23,7 +23,6 @@ library('gtools')
 library(gtrendsR)
 library(reshape2)
 
-
 setwd("D:/Spring 2020/FIN 580")
 
 #############################################################################
@@ -179,21 +178,28 @@ get_mses <- function(group_idx, lags_to_try = c(1), sq = FALSE, cross = FALSE, c
 }
 
 countries <- c("US", "IT", "CA", "IN", "CN", 
-               "MX", "SG", "CH", "ES", "GB", "SE", "DK", "JP", 
-               "PK", "KR", "HK", "DE", "AU", "BE", 
+               "MX", "SG", "CH", "ES", "GB", "SE", "DK", 
+               "JP", "PK", "KR", "HK", "DE", "AU", "BE", 
                "NL", "PT", "BR", "FR", "FI")
 # US, Italy, Canada, India, China, 
 # Mexico, Singapore, Switzerland, Spain, United Kingdom, Stockholm, Copenhagen, 
 # Japan, Pakistan, South Korea, Hong Kong, Germany, Australia, Belgium, 
 # Netherlands, Portugal, Brazil, France, Finland
 
+group1_idx <- c(3, 4, 5, 8, 9, 20, 21, 22, 23, 24, 26)
 group3_idx <- c(18, 28)
 group2_idx <- c(1, 2, 6, 7, 11, 12, 15, 25, 27, 29, 31)
+group4_idx <- c(10, 13, 14, 16, 17, 19, 30)
 lags_to_try <- c(1, 2, 3, 4, 5)
 
 words <- c("coronavirus", "COVID-19")
 start <- as.Date(all_dates[1])
 end <- as.Date(Sys.Date())
+
+countries1 <- c("BE", "IN", "PT", "FR", "IT", "FI", "DK", "ES")
+gtrends1 <- get_word_data(words, countries1, start, end)
+gtrends1 <- gtrends1[which(rownames(gtrends1) %in% all_dates),]
+gtrends1[is.na(gtrends1)] <- 0
 
 countries2 <- c("AU", "BR", "US", "DE", "CA", "GB", "CH")
 gtrends2 <- get_word_data(words, countries2, start, end)
@@ -205,6 +211,23 @@ gtrends3 <- get_word_data(words, countries3, start, end)
 gtrends3 <- gtrends3[which(rownames(gtrends3) %in% all_dates),]
 gtrends3[is.na(gtrends3)] <- 0
 
+countries4 <- c("GB", "HK", "ES", "KR", "PK", "JP", "SG")
+gtrends4 <- get_word_data(words, countries4, start, end)
+gtrends4 <- gtrends4[which(rownames(gtrends4) %in% all_dates),]
+gtrends4[is.na(gtrends4)] <- 0
+
+
+labels <- c('Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Lag 5',
+            'Squared', 'Cross', 'Google trends')
+
+grp1_res_lag <- get_mses(group1_idx, lags_to_try)
+grp1_cluster_mses_lag <- rowMeans(grp1_res_lag)
+grp1_res_sq <- get_mses(group1_idx, sq = TRUE)
+grp1_cluster_mses_sq <- mean(grp1_res_sq)
+grp1_res_cross <- get_mses(group1_idx, cross = TRUE, cross_itself = TRUE)
+grp1_cluster_mses_cross <- mean(grp1_res_cross)
+grp1_res_gtrends <- get_mses(group1_idx, gtrends = gtrends1)
+grp1_cluster_mses_gtrends <- mean(grp1_res_gtrends) 
 
 grp2_res_lag <- get_mses(group2_idx, lags_to_try)
 grp2_cluster_mses_lag <- rowMeans(grp2_res_lag)
@@ -215,7 +238,6 @@ grp2_cluster_mses_cross <- mean(grp2_res_cross)
 grp2_res_gtrends <- get_mses(group2_idx, gtrends = gtrends2)
 grp2_cluster_mses_gtrends <- mean(grp2_res_gtrends) 
 
-
 grp3_res_lag <- get_mses(group3_idx, lags_to_try = lags_to_try)
 grp3_cluster_mses_lag <- rowMeans(grp3_res_lag)
 grp3_res_sq <- get_mses(group3_idx, sq = TRUE)
@@ -224,3 +246,20 @@ grp3_res_cross <- get_mses(group3_idx, cross = TRUE, cross_itself = TRUE)
 grp3_cluster_mses_cross <- mean(grp3_res_cross) 
 grp3_res_gtrends <- get_mses(group3_idx, gtrends = gtrends3)
 grp3_cluster_mses_gtrends <- mean(grp3_res_gtrends) 
+
+grp4_res_lag <- get_mses(group4_idx, lags_to_try)
+grp4_cluster_mses_lag <- rowMeans(grp4_res_lag)
+grp4_res_sq <- get_mses(group4_idx, sq = TRUE)
+grp4_cluster_mses_sq <- mean(grp4_res_sq)
+grp4_res_cross <- get_mses(group4_idx, cross = TRUE, cross_itself = TRUE)
+grp4_cluster_mses_cross <- mean(grp4_res_cross)
+grp4_res_gtrends <- get_mses(group4_idx, gtrends = gtrends4)
+grp4_cluster_mses_gtrends <- mean(grp4_res_gtrends) 
+
+grp1_all_mses <- c(grp1_cluster_mses_lag, grp1_cluster_mses_sq, grp1_cluster_mses_cross, grp1_cluster_mses_gtrends)
+grp2_all_mses <- c(grp2_cluster_mses_lag, grp2_cluster_mses_sq, grp2_cluster_mses_cross, grp2_cluster_mses_gtrends)
+grp3_all_mses <- c(grp3_cluster_mses_lag, grp3_cluster_mses_sq, grp3_cluster_mses_cross, grp3_cluster_mses_gtrends)
+grp4_all_mses <- c(grp4_cluster_mses_lag, grp4_cluster_mses_sq, grp4_cluster_mses_cross, grp4_cluster_mses_gtrends)
+res <- cbind(grp1_all_mses, grp2_all_mses, grp3_all_mses, grp4_all_mses)
+rownames(res) <- labels
+res
