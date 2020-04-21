@@ -3,6 +3,7 @@ rm(list=ls())
 
 library('fasttime')
 library('data.table')
+library(plyr)
 library('dplyr')
 library('matrixStats')
 library('bit64')
