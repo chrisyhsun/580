@@ -54,6 +54,7 @@ library('HDeconometrics')
 library('tictoc')
 library('cluster')
 library('factoextra')
+library('tseries')
 ```
 
 Our dataset has values for daily open, close and RV for 31 indices. 
@@ -280,7 +281,8 @@ We would also be interested in seeing how the cross rv terms relate. As the inte
 
 ```{r}
 col <- seq(from=4, to=94, by = 3)
-rvs <- na_interpolation(grid[1512:5303,col], option = "linear") 
+# rvs <- na_interpolation(grid[1512:5303,col], option = "linear") 
+rvs <- na.locf(grid, na.rm=FALSE)[1512:5303, col]
 rvs <- rvs[,-c(5,9,30)]
 covars <- c()
 window <- 500
@@ -289,7 +291,7 @@ for (i in 1:(nrow(rvs)-(window-1))){
   mean_cor <- mean(cor(sub))
   covars <- c(covars, mean_cor)
 }
-plot(as.Date(grid$Date[2011:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 500 days Correlation") # roughly starting from Sept, 2007
+plot(as.Date(grid$Date[2011:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", col='blue') # roughly starting from Sept, 2007
 ```
 
 ```{r fig.width=7, fig.height=5,echo=FALSE}
@@ -340,17 +342,23 @@ Maybe like NVIX or Economic Uncertainity Data (It is however only mothly and las
 We calculate daily standardized returns and check for their normality using Shapiro-Wilk Normality Test. If p-value given by the test is greater than 0.05 then we can not reject the normality assumption.
 
 ```{r}
+new_data <- fread('data/final_data.csv')
+new_data <- new_data[, -c(1, 96)]
+```
+
+```{r}
 #grid
 col <- seq(from=2, to=92, by = 3)
 pvalsw <- c()
 pvaljb <- c()
 for (x in col){
-  sub <- grid[,c(x,x+1,x+2)]
-  eps <- log(sub[,1]/sub[,2])/sqrt(sub[,3])
+  sub <- new_data[,c(..x, ..x+1, ..x+2)]
+  eps <- log(sub[,2]/sub[,1])/sqrt(sub[,3])
+  eps <- unlist(eps)
+  print(paste(x, which(is.na(eps))))
   eps <- eps[!is.na(eps)]
-  if (length(eps)> 5000){
-    eps <- tail(eps, 5000)
-  }
+  # Check: 11 25
+  # Check: "59 106" "59 131" "59 141" "59 187" "59 197" "59 207" "59 208"
   a <- shapiro.test(eps)
   b <- jarque.bera.test(eps)
   pvalsw <- c(pvalsw, a$p.value)
@@ -371,7 +379,15 @@ for (x in col){
 At 5% significance level, we have to reject the null hypothesis (that the data is normal) for 24 out of 31 indices.
 
 ```{r}
-plot(pvalsw, main="P-values for different Indices - SW", ylab='p value')
+plot(pvaljb, ylab='p-values', type='n', xaxt='n', xlab='')
+text(pvaljb, index_names, cex=0.75)
+abline(h=0.05, lty=2, col='red')
+```
+
+```{r}
+names(pvalsw) <- index_names
+barplot(pvalsw, ylim=c(0, 1), ylab='p-values', xlab='', las=2, cex.names=0.9)
+# text(pvalsw, index_names, cex=0.75)
 abline(h=0.05, lty=2, col='red')
 ```
 
@@ -388,15 +404,20 @@ abline(h=0.05, lty=2, col='red')
 
 Plotting both p-values together
 ```{r}
-plot(pvalsw, pvaljb)
+plot(pvalsw, pvaljb, ylim=c(0, 1), xlim=c(0,1), xlab="p-values (Shapiro-Wilk)", ylab="p-values (Jarque-Bera)")
+# text(pvalsw, pvaljb, index_names, cex=0.75)
 abline(h=0.05, lty=2, col='red')
 abline(v=0.05, lty=2, col='red')
 ```
 
 So the two tests agree on all indices but one:
 ```{r}
-print(which(pvalsw > 0.05))
-print(which(pvaljb > 0.05))
+sw_reject <- which(pvalsw < 0.05)
+jb_reject <- which(pvaljb < 0.05)
+print(sw_reject)
+print(jb_reject)
+print(intersect(sw_reject, jb_reject))
+print(index_names[intersect(sw_reject, jb_reject)])
 ```
 
 # Building Baseline models
@@ -406,70 +427,57 @@ We want to start the forecasts from February 1st, 2020.
 a) Random Walk: For predicting value at time t, use the value at time t-1.
 
 ```{r}
-col <- c(1,seq(from=4, to=94, by = 3))
-sample$Date <- as.Date(sample$Date)
-testdata <- sample[year(sample$Date)==2020,]
+finaldata <- fread("data/final_data.csv")
+col <- c(2,seq(from=5, to=95, by = 3))
+finaldata <- finaldata[, ..col]
 
-#rv_actual has NAs, the idea would be to not make any predictions for those
-rv_actual <- testdata[month(testdata$Date)>=2,col ]
 
-#forward filling data so that we look at the most recent available value
-rv_for_pred <- na.locf(na.locf(testdata[,col]), fromLast = TRUE)
-rv_for_pred$Date <- shift(rv_for_pred$Date , -1)
+feb_start <- which(finaldata$Date == '2020-02-01')
+sq_errs <- diff(as.matrix(finaldata[, c(-1)]))^2
+sq_errs_pre <- sq_errs[3:(feb_start-2),]
+sq_errs_post <- sq_errs[(feb_start-1):nrow(sq_errs),]
+mse_pre <- colMeans(sq_errs_pre)
+mse_post <- colMeans(sq_errs_post)
+mse_overall <- colMeans(sq_errs[3:nrow(sq_errs),])
 
-#par(mfrow=c(3,3))
-mse <- c()
-for (s in 2:32){
-  pick <- na.omit(rv_actual[,c(1,s)])
-  pred <- merge(pick,rv_for_pred[,c(1,s)], by=c("Date"))
-  #plot((pred[,2]- pred[,3])^2)
-  mse <- c(mse, mean((pred[,2]- pred[,3])^2))
-}
-
-plot(mse, main="Mse for each index with Random Walk Predcitions")
-```
-
-```{r fig.width=5, fig.height=4,echo=FALSE}
-img <- readPNG("img/randomMSE.png")
-grid.newpage()
-grid.raster(img)
+mse_csv <- cbind(index_names, mse_pre, mse_post, mse_overall)
+write.csv(mse_csv, "mse_rw.csv", row.names = FALSE )
 ```
 
 b) Heterogeneous Autoregressive (HAR) model: We can use 200 days (to account for recency) rolling window for our predictions?
 
 ```{r}
 col <- c(1,seq(from=4, to=94, by = 3))
-traindata <- na.locf(na.locf(tail(sample[,col], 1000)), fromLast = TRUE)
+traindata <- finaldata[,col]
 mean5 <- as.data.frame(rollmean(zoo(traindata[, -c(1)]), 5))
 mean22 <- as.data.frame(rollmean(zoo(traindata[, -c(1)]), 22))
 
-# for 200 day rolling windows
-rv <- tail(traindata, 239)
-rv5 <- tail(mean5, 239)
-rv22 <- tail(mean22, 239)
+testdata <- finaldata[year(finaldata$Date)==2020,col]
+rv_actual <- testdata[month(testdata$Date)>=2, ]
+n <- nrow(rv_actual)
 
-rv_actual <- testdata[month(testdata$X)>=2,col ]
+# for 90 day rolling windows
+window <- 90
+rv <- tail(traindata, (window+n+1))
+rv5 <- tail(mean5, (window+n+1))
+rv22 <- tail(mean22, (window+n+1))
 
 #par(mfrow=c(3,3))
 mse_har <- c()
 for (s in 2:32){
   err <- c()
-  for (x in 1:38){
-    tab <- as.data.frame(cbind(rv[x:(199+x),s], rv5[x:(199+x),(s-1)], rv22[x:(199+x),(s-1)], rv[(x+1):(200+x),s]))
+  for (x in 1:n){
+    tab <- as.data.frame(cbind(rv[x:(window - 1 +x),s], rv5[x:(window - 1+x),(s-1)], rv22[x:(window - 1 +x),(s-1)], rv[(x+1):(window+x),s]))
     linearMod <- lm(V4 ~ ., data=tab) 
-    x_new <- as.data.frame(cbind(rv[(200+x),s], rv5[(200+x),(s-1)], rv22[(200+x),(s-1)]))
+    x_new <- as.data.frame(cbind(rv[(window+x),s], rv5[(window+x),(s-1)], rv22[(window+x),(s-1)]))
     rv_pred <- predict(linearMod, x_new)
     rv_actual_val <- rv_actual[x,s]
-    # check error only when the actual value is present
-    if (is.na(rv_actual_val) == FALSE){
-      err <- c(err, (rv_pred - rv_actual_val)^2)
-    }
+    err <- c(err, (rv_pred - rv_actual_val)^2)
   }
   #plot(err)
   mse_har <- c(mse_har, mean(err))
 }
 plot(mse_har, main="Mse for each index with HAR Predictions")
-
 ```
 
 ```{r fig.width=5, fig.height=4,echo=FALSE}
@@ -488,6 +496,7 @@ grid.raster(img)
 
 ```{r}
 realized_covariances <- fread('data/final_data.csv')
+dates <- realized_covariances[, c("Date")]
 realized_covariances <- realized_covariances[, -c("V1", "Date", "covars")]
 realized_covariances <- realized_covariances[, c(seq(3, 93, 3))]
 ```
@@ -499,37 +508,16 @@ group3 <- c(18, 28)
 group4 <- c(10, 13, 14, 16, 17, 19, 30)
 ```
 
-
-```{r}
-group_ind <- group1
-lag <- 4
-
-n_rows <- nrow(realized_covariances) - lag
-
-# First lag all
-x <- realized_covariances[lag:(nrow(realized_covariances)-1), ]
-y <- realized_covariances[(lag+1):nrow(realized_covariances), ..group_ind]
-
-if (lag > 1) {
-  for (i in 2:lag) {
-    print(dim(x))
-    x <- cbind(x, realized_covariances[(lag+1-i):(nrow(realized_covariances)-i), ..group_ind])   
-  }  
-}
-
-print(dim(x))
-print(dim(y))
-```
-
 first lag and second order terms
 
 ```{r}
-group_ind <- group4
+group_ind <- group3
 n_rows <- nrow(realized_covariances)
 
 # First lag all
 x <- realized_covariances[1:(nrow(realized_covariances)-1), ]
 y <- realized_covariances[2:nrow(realized_covariances), ..group_ind]
+y_date <- dates[2:nrow(realized_covariances)]
 
 second_order_terms <- c()
 for (i in 1:nrow(x)) {
@@ -540,6 +528,36 @@ for (i in 1:nrow(x)) {
 }
 
 x <- cbind(x, second_order_terms)
+
+x <- cbind(y_date, x)
+y <- cbind(y_date, y)
+
+print(dim(x))
+print(dim(y))
+```
+
+Lags 
+```{r}
+group_ind <- group2
+lag <- 3
+
+n_rows <- nrow(realized_covariances) - lag
+
+# First lag all
+x <- realized_covariances[lag:(nrow(realized_covariances)-1), ]
+y <- realized_covariances[(lag+1):nrow(realized_covariances), ..group_ind]
+y_date <- dates[(lag+1):nrow(realized_covariances)]
+
+
+if (lag > 1) {
+  for (i in 2:lag) {
+    print(dim(x))
+    x <- cbind(x, realized_covariances[(lag+1-i):(nrow(realized_covariances)-i), ..group_ind])   
+  }  
+}
+
+x <- cbind(y_date, x)
+y <- cbind(y_date, y)
 
 print(dim(x))
 print(dim(y))
@@ -609,3 +627,10 @@ print(rw_col_mse)
 print(rw_overall_mse)
 ```
 
+```{r}
+rw_pred <- y[window_length:(nrow(y)-1),]*-0.95
+rw_col_mse <- colMeans((actual_data - rw_pred)**2)
+rw_overall_mse <- mean(rw_col_mse)
+print(rw_col_mse)
+print(rw_overall_mse)
+```
