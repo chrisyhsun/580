@@ -430,15 +430,15 @@ a) Random Walk: For predicting value at time t, use the value at time t-1.
 finaldata <- fread("data/final_data.csv")
 col <- c(2,seq(from=5, to=95, by = 3))
 finaldata <- finaldata[, ..col]
-
+index_names <- substr(colnames(finaldata)[-1], 4, nchar(colnames(finaldata)[-1]))
 
 feb_start <- which(finaldata$Date == '2020-02-01')
 sq_errs <- diff(as.matrix(finaldata[, c(-1)]))^2
-sq_errs_pre <- sq_errs[3:(feb_start-2),]
+sq_errs_pre <- sq_errs[93:(feb_start-2),]
 sq_errs_post <- sq_errs[(feb_start-1):nrow(sq_errs),]
 mse_pre <- colMeans(sq_errs_pre)
 mse_post <- colMeans(sq_errs_post)
-mse_overall <- colMeans(sq_errs[3:nrow(sq_errs),])
+mse_overall <- colMeans(sq_errs[93:nrow(sq_errs),])
 
 mse_csv <- cbind(index_names, mse_pre, mse_post, mse_overall)
 write.csv(mse_csv, "mse_rw.csv", row.names = FALSE )
