@@ -1,4 +1,17 @@
 # 1 day lag
+make_lagged_dataset <- function(lag) {
+  n_rows <- nrow(realized_covariances) - lag
+  
+  x <- c()
+  y <- realized_covariances[(lag+1):nrow(realized_covariances), ]
+  
+  for (i in 1:lag) {
+    x <- cbind(x, realized_covariances[(lag+1-i):(nrow(realized_covariances)-i), ])   
+  }
+  
+  return (list(x, y)) 
+}
+
 lag <- 1
 lagged_dataset <- make_lagged_dataset(lag)
 x <- lagged_dataset[[1]]

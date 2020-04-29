@@ -55,6 +55,7 @@ library('tictoc')
 library('cluster')
 library('factoextra')
 library('tseries')
+library('segMGarch')
 ```
 
 Our dataset has values for daily open, close and RV for 31 indices. 
@@ -112,12 +113,6 @@ count_col_na <- function(data) {
 }
 ```
 
-
-```{r show_data_head}
-head(sample[, 1:7])
-```
-
-
 Checking how much data is missing-
 ```{r}
 col <- seq(from=2, to=92, by = 3)
@@ -141,18 +136,6 @@ vis_miss(sample2, show_perc_col=FALSE) +
 col <- c(1, seq(from=2, to=92, by = 3))
 vis_miss(sample[,col]) # total 6.7% missing data, most for BVLG and STI
 gg_miss_var(sample[,col])
-```
-
-```{r fig.width=10, fig.height=7,echo=FALSE}
-img <- readPNG("img/missingdata.png")
-grid.newpage()
-grid.raster(img)
-```
-
-```{r fig.width=5, fig.height=3.5,echo=FALSE}
-img <- readPNG("img/missingcount.png")
-grid.newpage()
-grid.raster(img)
 ```
 
 Also, we check what are the sizes of continuous gaps of data. The max continuous gaps as we already know are for BVLG and STI in the begining of the data. Apart from that the gap range is at max 5.
@@ -191,21 +174,9 @@ plotNA.imputations(sample$open.AORD[1400:1800], linear_imputed_data$open.AORD[14
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
-```{r fig.width=3.5, fig.height=3,echo=FALSE}
-img <- readPNG("img/AORDlinear.png")
-grid.newpage()
-grid.raster(img)
-```
-
 ```{r}
 plotNA.imputations(sample$open.AORD[1400:1800], spline_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
-```
-
-```{r fig.width=3.5, fig.height=3,echo=FALSE}
-img <- readPNG("img/AORDspline.png")
-grid.newpage()
-grid.raster(img)
 ```
 
 Constant Imputation
@@ -213,12 +184,6 @@ Constant Imputation
 ```{r}
 plotNA.imputations(sample$open.AORD[1400:1800], constant_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
-```
-
-```{r fig.width=3.5, fig.height=3,echo=FALSE}
-img <- readPNG("img/AORDconstant.png")
-grid.newpage()
-grid.raster(img)
 ```
 
 For STI which has a lot of missing data in the beginning itself what do the three models do-
@@ -230,19 +195,9 @@ plotNA.imputations(sample$open.STI[1400:1800], linear_imputed_data$open.STI[1400
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
-```{r fig.width=3.5, fig.height=3,echo=FALSE}
-img <- readPNG("img/STIlinear.png")
-grid.raster(img)
-```
-
 ```{r}
 plotNA.imputations(sample$open.STI[1400:1800], spline_imputed_data$open.STI[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
-```
-
-```{r fig.width=3.5, fig.height=3,echo=FALSE}
-img <- readPNG("img/STIspline.png")
-grid.raster(img)
 ```
 
 ```{r}
@@ -262,18 +217,6 @@ col <- seq(from=52, to=94, by = 3)
 for (j in col){
    acf(linear_imputed_data[,j], main=paste0(names(linear_imputed_data)[j]))
 }
-```
-
-```{r fig.width=7, fig.height=4,echo=FALSE}
-img <- readPNG("img/acf1.png")
-grid.newpage()
-grid.raster(img)
-```
-
-```{r fig.width=7, fig.height=4,echo=FALSE}
-img <- readPNG("img/acf2.png")
-grid.newpage()
-grid.raster(img)
 ```
 
 We would also be interested in seeing how the cross rv terms relate. As the interactions would be large (31C2 i.e. 465 terms), one of the ways that we decided to look at is average correlation over time using 500 values in each window. (Let us remove BVLG, FTMIB, STI and remove 1152 intial rows (now data starts from roughly Oct 2005) as their std would be zero when a constant value is imputed)
@@ -441,7 +384,7 @@ mse_post <- colMeans(sq_errs_post)
 mse_overall <- colMeans(sq_errs[93:nrow(sq_errs),])
 
 mse_csv <- cbind(index_names, mse_pre, mse_post, mse_overall)
-write.csv(mse_csv, "mse_rw.csv", row.names = FALSE )
+# write.csv(mse_csv, "mse_rw.csv", row.names = FALSE )
 ```
 
 b) Heterogeneous Autoregressive (HAR) model: We can use 200 days (to account for recency) rolling window for our predictions?
@@ -494,6 +437,8 @@ grid.newpage()
 grid.raster(img)
 ```
 
+### Building Datasets
+
 ```{r}
 realized_covariances <- fread('data/final_data.csv')
 dates <- realized_covariances[, c("Date")]
@@ -511,7 +456,7 @@ group4 <- c(10, 13, 14, 16, 17, 19, 30)
 first lag and second order terms
 
 ```{r}
-group_ind <- group3
+group_ind <- group4
 n_rows <- nrow(realized_covariances)
 
 # First lag all
@@ -538,7 +483,7 @@ print(dim(y))
 
 Lags 
 ```{r}
-group_ind <- group2
+group_ind <- group3
 lag <- 3
 
 n_rows <- nrow(realized_covariances) - lag
@@ -565,6 +510,7 @@ print(dim(y))
 
 
 ```{r}
+x<- realized_covariances
 window_length <- 90
 n_windows <- nrow(x) - window_length
 
@@ -597,6 +543,8 @@ for (i in 1:length(group_ind)) {
 
 # Calculate the proportion of beta assigned to each predictor
 coef_arr_norm <- c()
+n_coefs_mat <- matrix(0, nrow=n_windows, ncol=length(group_ind))
+
 for (i in 1:length(group_ind)) {
   coefs <- coef_arr[[i]]
   # normalized_coefs is also of size no. of covariates * no. of windows
@@ -605,6 +553,8 @@ for (i in 1:length(group_ind)) {
   # Take average across all windows to get vector of length no. of covariates
   # representing average proportion of beta on each covariate.
   coef_arr_norm[[i]] <- rowMeans(normalized_coefs)
+  
+  n_coefs_mat[, i] <- colMeans(coefs != 0)
 }
 
 coef_mat <- matrix(0, nrow=(length(coef_arr_norm[[1]])), ncol=length(group_ind))
@@ -619,18 +569,137 @@ print(col_mse)
 print(overall_mse)
 ```
 
+```{r relevant_vars_graphs}
+n_relevant_vars <- fread("data/prop_sig_coef_per_window.csv")
+plot(unlist(n_relevant_vars[, 1]), type='s', col='orange', ylim=c(0, 1),
+     xlab='', ylab='Percentage of Relevant Variables', xaxt='n')
+axis(1, at=c(seq(1, 120, 20), 119), labels=substr(y_date[c(seq(1, 120, 20), 119)], 1, 7), las=1, cex.axis=0.95)
+lines(unlist(n_relevant_vars[, 2]), type='s', col='red')
+lines(unlist(n_relevant_vars[, 3]), type='s', col='green')
+lines(unlist(n_relevant_vars[, 4]), type='s', col='blueviolet')
+lines(rowMeans(n_relevant_vars), type='s', col='black')
+legend("top", c(index_names[1], index_names[2], index_names[3], index_names[4], "Average"),
+       col=c('orange', 'red', 'green', 'blueviolet', 'black'),
+       lwd=3, cex=0.7, horiz=TRUE)
+
+```
+
+### Coverage Tests
+
+```{r create_return_files}
+final_data <- fread("data/final_data.csv")
+dates <- final_data[, 2]
+final_data  <- final_data[, -c(1, 2, 96)]
+
+returns <- c()
+for (k in 0:30) {
+  opening_col <- 3*k + 1
+  closing_col <- 3*k + 2
+  opening <- final_data[, ..opening_col]
+  closing <- final_data[, ..closing_col]
+  index_returns <- log(closing/opening) # (closing-opening)/opening
+  returns <- cbind(returns, index_returns)
+}
+
+colnames(returns) <- index_names
+write.csv(returns, "log_returns.csv", row.names = FALSE)
+```
+
+```{r create_return_files_2}
+final_data <- fread("data/final_data.csv")
+dates <- final_data[, 2]
+final_data  <- final_data[, -c(1, 2, 96)]
+
+returns <- c()
+for (k in 0:30) {
+  closing_col <- 3*k + 2
+  closing <- unlist(final_data[, ..closing_col])
+  index_returns <- diff(log(closing))
+  returns <- cbind(returns, index_returns)
+}
+
+colnames(returns) <- index_names
+write.csv(returns, "log_returns_closing.csv", row.names = FALSE)
+```
+
+
 ```{r}
-rw_pred <- y[window_length:(nrow(y)-1),]
-rw_col_mse <- colMeans((actual_data - rw_pred)**2)
-rw_overall_mse <- mean(rw_col_mse)
-print(rw_col_mse)
-print(rw_overall_mse)
+boosted_trees_predictions <- fread("data/boosted_tree_predictions.csv")
+random_forest_predictions <- fread("data/random_forest_predictions.csv")
+```
+
+### Kupiec Tests
+```{r kupiec_tests}
+normal_returns <- fread("data/normal_returns.csv")
+log_returns <- fread("data/log_returns.csv")
+log_returns_c <- fread("data/log_returns_closing.csv")
+
+normal_returns_feb_start <- which(normal_returns$Date == '2/1/2020')
+post_feb_normal_returns <- normal_returns[normal_returns_feb_start:nrow(normal_returns), c(-1)]
+
+log_returns_feb_start <- which(log_returns$Date == '2/1/2020')
+post_feb_log_returns <- log_returns[log_returns_feb_start:nrow(log_returns), c(-1)]
+
+log_returns_c_feb_start <- which(log_returns_c$Date == '2/1/2020')
+post_feb_log_returns_c <- log_returns[log_returns_c_feb_start:nrow(log_returns_c), c(-1)]
+
+index_names <- c("AEX", "AORD", "BFX", "BSESN", "BVLG", "BVSP", "DJI", "FCHI", "FTMIB", "FTSE",
+                 "GDAXI", "GSPTSE", "HSI", "IBEX", "IXIC", "KS11", "KSE", "MXX", "N225",
+                 "NSEI", "OMXC20", "OMXHPI", "OMXSPI", "OSEAX", "RUT", "SMSI", "SPX", "SSEC",
+                 "SSMI", "STI", "STOXX50E")
+```
+
+
+```{r}
+kupiec_test <- function(returns, preds) {
+  vars <- qnorm(0.05)*sqrt(preds)
+  
+  for (i in 1:31) {
+    print(index_names[i])
+    z <- kupiec(unlist(returns[, ..i]), unlist(preds[, ..i]), 0.95, verbose=TRUE, test="PoF")
+    print(z)
+  }
+} 
 ```
 
 ```{r}
-rw_pred <- y[window_length:(nrow(y)-1),]*-0.95
-rw_col_mse <- colMeans((actual_data - rw_pred)**2)
-rw_overall_mse <- mean(rw_col_mse)
-print(rw_col_mse)
-print(rw_overall_mse)
+traffic_light_test <- function(returns, preds) {
+  vars <- qnorm(0.05)*sqrt(preds)
+  
+  red <- c()
+  yellow <- c()
+  green <- c()
+  
+  for (i in 1:31) {
+    res <- TL(y=unlist(returns[, ..i]), VaR=unlist(preds[, ..i]), VaR_level=0.95)
+    if (res$color == "red") {
+      red <- c(red, index_names[i])
+    }
+    
+    if (res$color == "yellow") {
+      yellow <- c(yellow, index_names[i])
+    }
+    
+    if (res$color == "green") {
+      green <- c(green, index_names[i])
+    }
+  }
+  
+  print("Red")
+  print(red)
+  print("Yellow")
+  print(yellow)
+  print("Green")
+  print(green)
+}
 ```
+
+
+```{r}
+kupiec_test(post_feb_log_returns_c, tail(boosted_trees_predictions[, c(-1)], 58))
+```
+
+```{r}
+traffic_light_test(post_feb_log_returns, tail(boosted_trees_predictions[, c(-1)], 58))
+```
+
