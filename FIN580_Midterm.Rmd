@@ -703,3 +703,46 @@ kupiec_test(post_feb_log_returns, tail(random_forest_predictions[, c(-1)], 58))
 traffic_light_test(post_feb_log_returns, tail(random_forest_predictions[, c(-1)], 58))
 ```
 
+Graphs
+
+```{r read_all_preds_data}
+returns <- fread('data/log_returns_closing.csv')
+
+# only 58
+rw_pred <- fread('data/RW_predictions.csv')
+sma_pred <- fread('data/SMA_predictions.csv')
+hyb_pred <- fread('data/HYB_predictions.csv')
+
+# need tail for the rest
+har_pred <- fread('data/har_preds.csv')
+modhar_pred <- fread('data/modhar_preds.csv')
+gbt_pred <- fread('data/boosted_tree_predictions.csv')
+rf_pred <- fread('data/random_forest_predictions.csv')
+
+preds <- list(rw_pred, sma_pred, hyb_pred, har_pred, modhar_pred, gbt_pred, rf_pred)
+tailed_preds <- lapply(preds, function(x) tail(x, 58))
+dates <- unlist(returns[, 1])
+tailed_dates <- tail(dates, 58)
+```
+
+```{r plot_graph}
+# index between 2 and 32 (column 1 is dates for all)
+# Choose from 3 5 7 10 13 14 15 18 19 20 22 23 28
+index <- 3
+date_indices <- c(1, 12, 23, 34, 45, 56)
+c_alph <- qnorm(0.05)
+
+plot(tail(unlist(returns[, ..index]), 58), type='l', xaxt='n', xlab='', ylab="Standardized Returns", ylim=c(-0.18, 0.05), lty='dotted')
+axis(1, at=date_indices, labels=c("Feb 01", "Feb 17", "March 03", "March 18", "Apr 02", "Apr 17"), cex.axis=0.8) # labels=tailed_dates[date_indices]
+colors <- c('red', 'orange', 'yellow', 'green', 'blue', 'purple', 'violet')
+for (i in 1:7) {
+  curr_preds <- tailed_preds[[i]]
+  pred_vars <- c_alph * sqrt(unlist(curr_preds[, ..index]))
+  lines(pred_vars, col=colors[i])
+}
+legend("bottomleft", c("Ret", "RW", "SWA", "Hybrid", "HAR", "Mod. HAR", "GBT", "RF"),
+       col=c('black', colors),
+       lwd=2, cex=0.5, horiz=TRUE, x.intersp=0.6, text.width=4.14, lty=c(3, rep(1, 7)))
+```
+
+
