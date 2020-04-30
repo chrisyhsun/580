@@ -23,6 +23,10 @@ library('gtools')
 library(gtrendsR)
 library(reshape2)
 library(pracma)
+library('cluster')
+library('factoextra')
+library('tseries')
+library('segMGarch')
 
 setwd("D:/Spring 2020/FIN 580")
 
@@ -714,7 +718,11 @@ tab_vals <- cbind(c(grp1_rw, grp1_postfeb, grp1_postfeb_resid),
                   c(grp2_rw, grp2_postfeb, grp2_postfeb_resid),
                   c(grp3_rw, grp3_postfeb, grp3_postfeb_resid),
                   c(grp4_rw, grp4_postfeb, grp4_postfeb_resid))
-colnames(tab_vals) <- c('Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4')
+wts <- c(length(group1_idx), length(group2_idx), length(group3_idx), length(group4_idx))
+wts <- wts / sum(wts)
+overall <- as.matrix(tab_vals) %*% matrix(wts, ncol = 1, nrow = 4)
+tab_vals <- cbind(tab_vals, overall)
+colnames(tab_vals) <- c('Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'Overall')
 rownames(tab_vals) <- c('Random Walk', 
                         'HAR(1, 5, 22)', 'HAR(1, 5, 22), log', 
                         'HAR(1, 3, 5)', 'HAR(1, 3, 5), log', 
@@ -822,8 +830,8 @@ grp2_preds <- get_preds_har(group2_idx, har_days = c(5, 22))
 grp3_preds <- get_preds_har(group3_idx, har_days = c(5, 22))
 grp4_preds <- get_preds_har(group4_idx, har_days = c(5, 22))
 all_preds <- get_preds_har(seq(1, 31), har_days = c(5, 22))
+colnames(all_preds) <- colnames(realized_covariances)
 toWrite <- data.frame(all_preds)
-colnames(toWrite) <- colnames(realized_covariances)
 write.csv(toWrite, "har_preds.csv", row.names = FALSE)
 
 grp1_preds_ln <- get_preds_har_ln(group1_idx, har_days = c(3, 5))
@@ -831,8 +839,79 @@ grp2_preds_ln <- get_preds_har_ln(group2_idx, har_days = c(3, 5))
 grp3_preds_ln <- get_preds_har_ln(group3_idx, har_days = c(3, 5))
 grp4_preds_ln <- get_preds_har_ln(group4_idx, har_days = c(3, 5))
 all_preds_ln <- get_preds_har_ln(seq(1, 31), har_days = c(3, 5))
+colnames(all_preds_ln) <- colnames(realized_covariances)
 toWrite_ln <- data.frame(all_preds_ln)
-colnames(toWrite_ln) <- colnames(realized_covariances)
 write.csv(toWrite_ln, "modhar_preds.csv", row.names = FALSE)
 
 #############################################################################
+
+normal_returns <- fread("data/normal_returns.csv")
+log_returns <- fread("data/log_returns.csv")
+log_returns_c <- fread("data/log_returns_closing.csv")
+normal_returns_feb_start <- which(normal_returns$Date == '2/1/2020')
+post_feb_normal_returns <- normal_returns[normal_returns_feb_start:nrow(normal_returns), c(-1)]
+log_returns_feb_start <- which(log_returns$Date == '2/1/2020')
+post_feb_log_returns <- log_returns[log_returns_feb_start:nrow(log_returns), c(-1)]
+log_returns_c_feb_start <- which(log_returns_c$Date == '2/1/2020')
+post_feb_log_returns_c <- log_returns[log_returns_c_feb_start:nrow(log_returns_c), c(-1)]
+index_names <- c("AEX", "AORD", "BFX", "BSESN", "BVLG", "BVSP", "DJI", "FCHI", "FTMIB", "FTSE",
+                 "GDAXI", "GSPTSE", "HSI", "IBEX", "IXIC", "KS11", "KSE", "MXX", "N225",
+                 "NSEI", "OMXC20", "OMXHPI", "OMXSPI", "OSEAX", "RUT", "SMSI", "SPX", "SSEC",
+                 "SSMI", "STI", "STOXX50E")
+
+kupiec_test <- function(returns, preds) {
+  preds <- sqrt(preds)
+  preds[is.nan(preds)] <- 0
+  vars <- qnorm(0.05)*preds
+  vars <- as.matrix(vars)
+  
+  returns <- as.matrix(returns)
+
+  for (i in seq(1, 31)) {
+    print(index_names[i])
+    tmp_vars <- vars[,as.numeric(i)]
+    tmp_rets <- unlist(returns[, (as.numeric(i))])
+    z <- kupiec(tmp_rets, tmp_vars, 0.95, verbose=TRUE, test="PoF")
+    print(z)
+  }
+} 
+
+traffic_light_test <- function(returns, preds) {
+  preds <- sqrt(preds)
+  preds[is.nan(preds)] <- 0
+  vars <- qnorm(0.05)*preds
+  vars <- as.matrix(vars)
+  
+  returns <- as.matrix(returns)  
+  red <- c()
+  yellow <- c()
+  green <- c()
+  
+  for (i in seq(1, 31)) {
+    res <- TL(y=unlist(returns[, as.numeric(i)]), VaR=unlist(vars[, as.numeric(i)]), VaR_level=0.95)
+    if (res$color == "red") {
+      red <- c(red, index_names[i])
+    }
+    
+    if (res$color == "yellow") {
+      yellow <- c(yellow, index_names[i])
+    }
+    
+    if (res$color == "green") {
+      green <- c(green, index_names[i])
+    }
+  }
+  
+  print("Red")
+  print(red)
+  print("Yellow")
+  print(yellow)
+  print("Green")
+  print(green)
+}
+
+kupiec_test(post_feb_log_returns, tail(all_preds, 58))
+traffic_light_test(post_feb_log_returns, tail(all_preds, 58))
+
+kupiec_test(post_feb_log_returns, tail(all_preds_ln, 58))
+traffic_light_test(post_feb_log_returns, tail(all_preds_ln, 58))
