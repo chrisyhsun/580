@@ -98,12 +98,18 @@ names(grid) <- "Date"
 symbols <- as.character(unique(data$Symbol))
 for (i in 1:length(symbols)){
   mergewith <- data[as.character(data$Symbol)==symbols[i],-c(2)]
-  names(mergewith) <- c("Date", paste0("open",symbols[i]), paste0("close",symbols[i]), paste0("rv",symbols[i]))
+  names(mergewith) <- c("Date", paste0("open",symbols[i]),
+                        paste0("close",symbols[i]), paste0("rv",symbols[i]))
   grid <- merge(grid, mergewith, by=c("Date"), all = TRUE )
 }
 
 index_names <- substr(symbols, 2, nchar(symbols))
-index_countries <- c("Amsterdam", "Australia", "Belgium", "India", "Portugal", "Brazil", "USA", "France", "Italy", "UK", "Germany", "Canada", "Hong Kong", "Spain", "USA", "Korea", "Pakistan", "Mexico", "Japan", "India2", "Denmark", "Finland", "Sweden", "Norway", "UK2", "Spain2", "USA", "China", "Switzerland", "Singapore", "EU")
+index_countries <- c("Amsterdam", "Australia", "Belgium", "India", "Portugal",
+                     "Brazil", "USA", "France", "Italy", "UK", "Germany",
+                     "Canada", "Hong Kong", "Spain", "USA", "Korea", "Pakistan",
+                     "Mexico", "Japan", "India2", "Denmark", "Finland",
+                     "Sweden", "Norway", "UK2", "Spain2", "USA", "China",
+                     "Switzerland", "Singapore", "EU")
 ```
 
 Checking how much data is missing
@@ -172,18 +178,27 @@ Visualizing the imputations for:
 1) AORD (not much missing data)
 
 ```{r}
-plotNA.imputations(sample$open.AORD[1400:1800], linear_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
-axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
+plotNA.imputations(sample$open.AORD[1400:1800],
+                   linear_imputed_data$open.AORD[1400:1800],
+                   ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1),
+     labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
 ```{r}
-plotNA.imputations(sample$open.AORD[1400:1800], spline_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
-axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
+plotNA.imputations(sample$open.AORD[1400:1800],
+                   spline_imputed_data$open.AORD[1400:1800],
+                   ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1),
+     labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
 ```{r}
-plotNA.imputations(sample$open.AORD[1400:1800], constant_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
-axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
+plotNA.imputations(sample$open.AORD[1400:1800],
+                   constant_imputed_data$open.AORD[1400:1800],
+                   ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1),
+     labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
 2) STI (lot of missing data - especially at the start)
@@ -191,18 +206,27 @@ axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 
 (The linear method basically fills one value for them all whereas spline does not, constant/forward fill doesn't fill in any data.)
 
 ```{r}
-plotNA.imputations(sample$open.STI[1400:1800], linear_imputed_data$open.STI[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
-axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
+plotNA.imputations(sample$open.STI[1400:1800],
+                   linear_imputed_data$open.STI[1400:1800],
+                   ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1),
+     labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
 ```{r}
-plotNA.imputations(sample$open.STI[1400:1800], spline_imputed_data$open.STI[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
-axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
+plotNA.imputations(sample$open.STI[1400:1800],
+                   spline_imputed_data$open.STI[1400:1800],
+                   ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1),
+     labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
 ```{r}
-plotNA.imputations(sample$open.STI[1400:1800], constant_imputed_data$open.STI[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
-axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
+plotNA.imputations(sample$open.STI[1400:1800],
+                   constant_imputed_data$open.STI[1400:1800],
+                   ylab='', xlab='Date', main='', xaxt='n')
+axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1),
+     labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
 ## Checking for normality of $\epsilon_t$
@@ -224,8 +248,6 @@ for (x in col){
   eps <- unlist(eps)
   print(paste(x, which(is.na(eps))))
   eps <- eps[!is.na(eps)]
-  # Check: 11 25
-  # Check: "59 106" "59 131" "59 141" "59 187" "59 197" "59 207" "59 208"
   a <- shapiro.test(eps)
   b <- jarque.bera.test(eps)
   pvalsw <- c(pvalsw, a$p.value)
@@ -244,8 +266,9 @@ abline(h=0.05, lty=2, col='red')
 
 Plotting both p-values together
 ```{r}
-plot(pvalsw, pvaljb, ylim=c(0, 1), xlim=c(0,1), xlab="p-values (Shapiro-Wilk)", ylab="p-values (Jarque-Bera)")
-# text(pvalsw, pvaljb, index_names, cex=0.75)
+plot(pvalsw, pvaljb, ylim=c(0, 1), xlim=c(0,1),
+     xlab="p-values (Shapiro-Wilk)", ylab="p-values (Jarque-Bera)")
+text(pvalsw, pvaljb, index_names, cex=0.75)
 abline(h=0.05, lty=2, col='red')
 abline(v=0.05, lty=2, col='red')
 ```
@@ -285,7 +308,8 @@ for (i in 1:(nrow(rvs)-(window-1))){
   mean_cor <- mean(cor(sub))
   covars <- c(covars, mean_cor)
 }
-plot(tail(grid$Date, length(covars)), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 500 days Correlation", col='blue' )
+plot(tail(grid$Date, length(covars)), covars, type='l', xlab="Years",
+     ylab="Average Correlation", main = "Rolling 500 days Correlation", col='blue' )
 ```
 
 Performing the same over a 90 day rolling window to identify local trends
@@ -301,7 +325,8 @@ for (i in 1:(nrow(rvs)-(window-1))){
   mean_cor <- mean(cor(sub))
   covars <- c(covars, mean_cor)
 }
-plot(as.Date(grid$Date[1601:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 90 days Correlation") # roughly starting from Sept, 2007
+plot(as.Date(grid$Date[1601:5303]), covars, type='l', xlab="Years",
+     ylab="Average Correlation", main = "Rolling 90 days Correlation")
 ```
 
 Writing the correlation column (500 days window) to the final data.
@@ -312,7 +337,8 @@ correl$V1 <- as.Date(correl$V1)
 names(correl)[1] <- "Date"
 correl <- na.omit(correl)
 sample <- grid[((year(grid$Date)>=2019 & month(grid$Date)>= 7)) | (year(grid$Date)>=2020),]
-correl <- correl[((year(correl$Date)>=2019 & month(correl$Date)>= 7)) | (year(correl$Date)>=2020),]
+correl <- correl[((year(correl$Date)>=2019 & month(correl$Date)>= 7)) |
+                   (year(correl$Date)>=2020),]
 finaldata <- merge(sample, correl, by=c("Date"), all = TRUE )
 finaldata <- na.locf(na.locf(finaldata, na.rm=FALSE) , na.rm = TRUE)
 write.csv(finaldata,"final_data.csv")
@@ -329,7 +355,8 @@ Another dataset that we looked at is Google trends.
 
 ```{r eval = F}
 words <- c("coronavirus")
-countries <- c("BE","IN","PT","FR","IT","DK","FI","SE","NO","ES","NL","AU","DE","BR","US","GB","CA","CH","MX","CN","HK","KR","PK","JP","SG")
+countries <- c("BE","IN","PT","FR","IT","DK","FI","SE","NO","ES","NL","AU",
+               "DE","BR","US","GB","CA","CH","MX","CN","HK","KR","PK","JP","SG")
 start_date <- "2020-01-01"
 end_date <- "2020-04-16"
 toReplace <- 0.5 # numeric chosen to represent "<1" in data
@@ -520,8 +547,8 @@ add_cross_terms <- function(x, indices, itself = FALSE) {
   return(toRet)
 }
 
-get_mses <- function(group_idx, lags_to_try = c(1), sq = FALSE, cross = FALSE, cross_itself = FALSE, 
-                     gtrends = NULL, debug = FALSE) {
+get_mses <- function(group_idx, lags_to_try = c(1), sq = FALSE, cross = FALSE,
+                     cross_itself = FALSE, gtrends = NULL, debug = FALSE) {
   
   mse_mat <- matrix(0, nrow = length(lags_to_try), ncol = length(group_idx))
   mse_rw_mat <- matrix(0, nrow = length(lags_to_try), ncol = length(group_idx))
@@ -671,10 +698,14 @@ grp4_cluster_mses_cross <- mean(grp4_res_cross)
 grp4_res_gtrends <- get_mses(group4_idx, gtrends = gtrends4)
 grp4_cluster_mses_gtrends <- mean(grp4_res_gtrends) 
 
-grp1_all_mses <- c(grp1_cluster_mses_lag, grp1_cluster_mses_sq, grp1_cluster_mses_cross, grp1_cluster_mses_gtrends)
-grp2_all_mses <- c(grp2_cluster_mses_lag, grp2_cluster_mses_sq, grp2_cluster_mses_cross, grp2_cluster_mses_gtrends)
-grp3_all_mses <- c(grp3_cluster_mses_lag, grp3_cluster_mses_sq, grp3_cluster_mses_cross, grp3_cluster_mses_gtrends)
-grp4_all_mses <- c(grp4_cluster_mses_lag, grp4_cluster_mses_sq, grp4_cluster_mses_cross, grp4_cluster_mses_gtrends)
+grp1_all_mses <- c(grp1_cluster_mses_lag, grp1_cluster_mses_sq,
+                   grp1_cluster_mses_cross, grp1_cluster_mses_gtrends)
+grp2_all_mses <- c(grp2_cluster_mses_lag, grp2_cluster_mses_sq,
+                   grp2_cluster_mses_cross, grp2_cluster_mses_gtrends)
+grp3_all_mses <- c(grp3_cluster_mses_lag, grp3_cluster_mses_sq,
+                   grp3_cluster_mses_cross, grp3_cluster_mses_gtrends)
+grp4_all_mses <- c(grp4_cluster_mses_lag, grp4_cluster_mses_sq,
+                   grp4_cluster_mses_cross, grp4_cluster_mses_gtrends)
 res <- cbind(grp1_all_mses, grp2_all_mses, grp3_all_mses, grp4_all_mses)
 
 rownames(res) <- labels
@@ -685,7 +716,8 @@ Graph the change in number of relevant variables over time.
 n_relevant_vars <- fread("data/prop_sig_coef_per_window.csv")
 plot(unlist(n_relevant_vars[, 1]), type='s', col='orange', ylim=c(0, 1),
      xlab='', ylab='Percentage of Relevant Variables', xaxt='n')
-axis(1, at=c(seq(1, 120, 20), 119), labels=substr(y_date[c(seq(1, 120, 20), 119)], 1, 7), las=1, cex.axis=0.95)
+axis(1, at=c(seq(1, 120, 20), 119), labels=substr(y_date[c(seq(1, 120, 20), 119)], 1, 7),
+     las=1, cex.axis=0.95)
 lines(unlist(n_relevant_vars[, 2]), type='s', col='red')
 lines(unlist(n_relevant_vars[, 3]), type='s', col='green')
 lines(unlist(n_relevant_vars[, 4]), type='s', col='blueviolet')
@@ -743,9 +775,11 @@ mse_har <- c()
 for (s in 2:32){
   err <- c()
   for (x in 1:n){
-    tab <- as.data.frame(cbind(rv[x:(window - 1 +x),s], rv5[x:(window - 1+x),(s-1)], rv22[x:(window - 1 +x),(s-1)], rv[(x+1):(window+x),s]))
+    tab <- as.data.frame(cbind(rv[x:(window - 1 +x),s], rv5[x:(window - 1+x),(s-1)],
+                               rv22[x:(window - 1 +x),(s-1)], rv[(x+1):(window+x),s]))
     linearMod <- lm(V4 ~ ., data=tab) 
-    x_new <- as.data.frame(cbind(rv[(window+x),s], rv5[(window+x),(s-1)], rv22[(window+x),(s-1)]))
+    x_new <- as.data.frame(cbind(rv[(window+x),s], rv5[(window+x),(s-1)],
+                                 rv22[(window+x),(s-1)]))
     rv_pred <- predict(linearMod, x_new)
     rv_actual_val <- rv_actual[x,s]
     err <- c(err, (rv_pred - rv_actual_val)^2)
@@ -858,7 +892,8 @@ plot(mse_avg)
 points(mse_rv, col='red')
 
 mses <- rbind(mse_avg, mse_rv)
-barplot(mses, beside=TRUE, xaxt = "n",xlab='', main="Mse for each index with SMA and RW Predcitions", ylab= 'MSE')
+barplot(mses, beside=TRUE, xaxt = "n",xlab='',
+        main="MSE for each index with SMA and RW Predcitions", ylab= 'MSE')
 axis(1, at= seq(2,94,3), labels = index_names, las = 2)
 ```
 
@@ -1047,39 +1082,43 @@ grp4_3_5 <- cbind(split_mses(grp4_res_har_3_5, 5), split_mses(grp4_res_har_ln_3_
 h_days_3 <- c(5, 10, 22)
 grp1_res_har_5_10_22 <- get_mses_har(group_idx = group1_idx, har_days = h_days_3)
 grp1_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group1_idx, har_days = h_days_3)
-grp1_5_10_22 <- cbind(split_mses(grp1_res_har_5_10_22, 22), split_mses(grp1_res_har_ln_5_10_22, 22))
+grp1_5_10_22 <- cbind(split_mses(grp1_res_har_5_10_22, 22),
+                      split_mses(grp1_res_har_ln_5_10_22, 22))
 grp2_res_har_5_10_22 <- get_mses_har(group_idx = group2_idx, har_days = h_days_3)
 grp2_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group2_idx, har_days = h_days_3)
-grp2_5_10_22 <- cbind(split_mses(grp2_res_har_5_10_22, 22), split_mses(grp2_res_har_ln_5_10_22, 22))
+grp2_5_10_22 <- cbind(split_mses(grp2_res_har_5_10_22, 22),
+                      split_mses(grp2_res_har_ln_5_10_22, 22))
 grp3_res_har_5_10_22 <- get_mses_har(group_idx = group3_idx, har_days = h_days_3)
 grp3_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group3_idx, har_days = h_days_3)
-grp3_5_10_22 <- cbind(split_mses(grp3_res_har_5_10_22, 22), split_mses(grp3_res_har_ln_5_10_22, 22))
+grp3_5_10_22 <- cbind(split_mses(grp3_res_har_5_10_22, 22),
+                      split_mses(grp3_res_har_ln_5_10_22, 22))
 grp4_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group4_idx, har_days = h_days_3)
 grp4_res_har_5_10_22 <- get_mses_har(group_idx = group4_idx, har_days = h_days_3)
-grp4_5_10_22 <- cbind(split_mses(grp4_res_har_5_10_22, 22), split_mses(grp4_res_har_ln_5_10_22, 22))
+grp4_5_10_22 <- cbind(split_mses(grp4_res_har_5_10_22, 22),
+                      split_mses(grp4_res_har_ln_5_10_22, 22))
 
 h_days_4 <- c(3, 5, 10, 22)
 grp1_res_har_3_5_10_22 <- get_mses_har(group_idx = group1_idx, har_days = h_days_4)
 grp1_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group1_idx, har_days = h_days_4)
-grp1_3_5_10_22 <- cbind(split_mses(grp1_res_har_3_5_10_22, 22), split_mses(grp1_res_har_ln_3_5_10_22, 22))
+grp1_3_5_10_22 <- cbind(split_mses(grp1_res_har_3_5_10_22, 22),
+                        split_mses(grp1_res_har_ln_3_5_10_22, 22))
 grp2_res_har_3_5_10_22 <- get_mses_har(group_idx = group2_idx, har_days = h_days_4)
 grp2_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group2_idx, har_days = h_days_4)
-grp2_3_5_10_22 <- cbind(split_mses(grp2_res_har_3_5_10_22, 22), split_mses(grp2_res_har_ln_3_5_10_22, 22))
+grp2_3_5_10_22 <- cbind(split_mses(grp2_res_har_3_5_10_22, 22),
+                        split_mses(grp2_res_har_ln_3_5_10_22, 22))
 grp3_res_har_3_5_10_22 <- get_mses_har(group_idx = group3_idx, har_days = h_days_4)
 grp3_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group3_idx, har_days = h_days_4)
-grp3_3_5_10_22 <- cbind(split_mses(grp3_res_har_3_5_10_22, 22), split_mses(grp3_res_har_ln_3_5_10_22, 22))
+grp3_3_5_10_22 <- cbind(split_mses(grp3_res_har_3_5_10_22, 22),
+                        split_mses(grp3_res_har_ln_3_5_10_22, 22))
 grp4_res_har_3_5_10_22 <- get_mses_har(group_idx = group4_idx, har_days = h_days_4)
 grp4_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group4_idx, har_days = h_days_4)
-grp4_3_5_10_22 <- cbind(split_mses(grp4_res_har_3_5_10_22, 22), split_mses(grp4_res_har_ln_3_5_10_22, 22))
+grp4_3_5_10_22 <- cbind(split_mses(grp4_res_har_3_5_10_22, 22),
+                        split_mses(grp4_res_har_ln_3_5_10_22, 22))
 
 allgrp1_har <- cbind(grp1_5_22, grp1_3_5, grp1_5_10_22, grp1_3_5_10_22)
-write.csv(data.frame(allgrp1_har), "grp1.csv", row.names = FALSE)
 allgrp2_har <- cbind(grp2_5_22, grp2_3_5, grp2_5_10_22, grp2_3_5_10_22)
-write.csv(data.frame(allgrp2_har), "grp2.csv", row.names = FALSE)
 allgrp3_har <- cbind(grp3_5_22, grp3_3_5, grp3_5_10_22, grp3_3_5_10_22)
-write.csv(data.frame(allgrp3_har), "grp3.csv", row.names = FALSE)
 allgrp4_har <- cbind(grp4_5_22, grp4_3_5, grp4_5_10_22, grp4_3_5_10_22)
-write.csv(data.frame(allgrp4_har), "grp4.csv", row.names = FALSE)
 ```
 
 # Modified HAR (residuals)
@@ -1136,7 +1175,7 @@ get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5)) {
       linear_mod_resid <- lm(resid ~ ., data = data.frame(train_x2))
       
       rv_pred <- exp(sum(linear_mod$coefficients * c(1, as.numeric(test_x1)), na.rm = TRUE))
-                     + sum(linear_mod_resid$coefficients * c(1, as.numeric(test_x2)), na.rm = TRUE)
+        + sum(linear_mod_resid$coefficients * c(1, as.numeric(test_x2)), na.rm = TRUE)
       
       rv_actual_val <-unlist(y[(j+window_length),..i])
       
@@ -1183,7 +1222,6 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5)) {
   n_windows <- nrow(x) - window_length
   coef_arr <- c()
   mse_grp <- 0
-
   tmp_cnt <- 1
   
   for (i in group_idx) {
@@ -1199,13 +1237,6 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5)) {
       y_data1[y_data1 == 0] <- 1e-15
       y_data1 <- log(y_data1)
       
-      
-      #print(head(x_data))
-      #toRet <- list()
-      #toRet[[1]] <- x_data
-      #toRet[[2]] <- y_data
-      #return(toRet)
-      
       train_x1 <- x_data1[1:(nrow(x_data1) - 1),]
       test_x1 <- x_data1[nrow(x_data1),]
       linear_mod <- lm(y_data1 ~ ., data = data.frame(train_x1))
@@ -1216,7 +1247,7 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5)) {
       linear_mod_resid <- lm(resid ~ ., data = data.frame(train_x2))
       
       rv_pred <- exp(sum(linear_mod$coefficients * c(1, as.numeric(test_x1)), na.rm = TRUE))
-      + sum(linear_mod_resid$coefficients * c(1, as.numeric(test_x2)), na.rm = TRUE)
+        + sum(linear_mod_resid$coefficients * c(1, as.numeric(test_x2)), na.rm = TRUE)
 
       rv_actual_val <-unlist(y[(j+window_length),..i])
       
@@ -1241,21 +1272,20 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5)) {
 
 grp1_res_har_ln_resid <- get_mses_har_ln_resid(group1_idx)
 grp1_res_har_ln_resid2 <- get_mses_har_ln_resid2(group1_idx)
-grp1_resid <- cbind(split_mses(grp1_res_har_ln_resid, 5), split_mses(grp1_res_har_ln_resid2, 5))
+grp1_resid <- cbind(split_mses(grp1_res_har_ln_resid, 5),
+                    split_mses(grp1_res_har_ln_resid2, 5))
 grp2_res_har_ln_resid <- get_mses_har_ln_resid(group2_idx)
 grp2_res_har_ln_resid2 <- get_mses_har_ln_resid2(group2_idx)
-grp2_resid <- cbind(split_mses(grp2_res_har_ln_resid, 5), split_mses(grp2_res_har_ln_resid2, 5))
+grp2_resid <- cbind(split_mses(grp2_res_har_ln_resid, 5),
+                    split_mses(grp2_res_har_ln_resid2, 5))
 grp3_res_har_ln_resid <- get_mses_har_ln_resid(group3_idx)
 grp3_res_har_ln_resid2 <- get_mses_har_ln_resid2(group3_idx)
-grp3_resid <- cbind(split_mses(grp3_res_har_ln_resid, 5), split_mses(grp3_res_har_ln_resid2, 5))
+grp3_resid <- cbind(split_mses(grp3_res_har_ln_resid, 5),
+                    split_mses(grp3_res_har_ln_resid2, 5))
 grp4_res_har_ln_resid <- get_mses_har_ln_resid(group4_idx)
 grp4_res_har_ln_resid2 <- get_mses_har_ln_resid2(group4_idx)
-grp4_resid <- cbind(split_mses(grp4_res_har_ln_resid, 5), split_mses(grp4_res_har_ln_resid2, 5))
-
-write.csv(data.frame(grp1_resid), "grp1_resid.csv", row.names = FALSE)
-write.csv(data.frame(grp2_resid), "grp2_resid.csv", row.names = FALSE)
-write.csv(data.frame(grp3_resid), "grp3_resid.csv", row.names = FALSE)
-write.csv(data.frame(grp4_resid), "grp4_resid.csv", row.names = FALSE)
+grp4_resid <- cbind(split_mses(grp4_res_har_ln_resid, 5),
+                    split_mses(grp4_res_har_ln_resid2, 5))
 ```
 
 \newpage
@@ -1283,10 +1313,10 @@ write.csv(returns, "log_returns.csv", row.names = FALSE)
 log_returns <- fread("data/log_returns.csv")
 log_returns_feb_start <- which(log_returns$Date == '2/1/2020')
 post_feb_log_returns <- log_returns[log_returns_feb_start:nrow(log_returns), c(-1)]
-index_names <- c("AEX", "AORD", "BFX", "BSESN", "BVLG", "BVSP", "DJI", "FCHI", "FTMIB", "FTSE",
-                 "GDAXI", "GSPTSE", "HSI", "IBEX", "IXIC", "KS11", "KSE", "MXX", "N225",
-                 "NSEI", "OMXC20", "OMXHPI", "OMXSPI", "OSEAX", "RUT", "SMSI", "SPX", "SSEC",
-                 "SSMI", "STI", "STOXX50E")
+index_names <- c("AEX", "AORD", "BFX", "BSESN", "BVLG", "BVSP", "DJI", "FCHI",
+                 "FTMIB", "FTSE", "GDAXI", "GSPTSE", "HSI", "IBEX", "IXIC",
+                 "KS11", "KSE", "MXX", "N225", "NSEI", "OMXC20", "OMXHPI",
+                 "OMXSPI", "OSEAX", "RUT", "SMSI", "SPX", "SSEC", "SSMI", "STI", "STOXX50E")
 ```
 
 ## Kupiec Tests
@@ -1361,8 +1391,10 @@ tailed_dates <- tail(dates, 58)
 index <- 3
 date_indices <- c(1, 12, 23, 34, 45, 56)
 c_alph <- qnorm(0.05)
-plot(tail(unlist(returns[, ..index]), 58), type='l', xaxt='n', xlab='', ylab="Standardized Returns", ylim=c(-0.18, 0.05), lty='dotted')
-axis(1, at=date_indices, labels=c("Feb 01", "Feb 17", "March 03", "March 18", "Apr 02", "Apr 17"), cex.axis=0.8) # labels=tailed_dates[date_indices]
+plot(tail(unlist(returns[, ..index]), 58), type='l', xaxt='n', xlab='',
+     ylab="Standardized Returns", ylim=c(-0.18, 0.05), lty='dotted')
+axis(1, at=date_indices,
+     labels=c("Feb 01", "Feb 17", "March 03", "March 18", "Apr 02", "Apr 17"), cex.axis=0.8)
 colors <- c('red', 'orange', 'yellow', 'green', 'blue', 'purple', 'violet')
 for (i in 1:7) {
   curr_preds <- tailed_preds[[i]]
