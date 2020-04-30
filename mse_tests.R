@@ -23,6 +23,10 @@ library('gtools')
 library(gtrendsR)
 library(reshape2)
 library(pracma)
+library('cluster')
+library('factoextra')
+library('tseries')
+library('segMGarch')
 
 setwd("D:/Spring 2020/FIN 580")
 
@@ -116,6 +120,8 @@ realized_covariances <- realized_covariances_extra[, c(seq(3, 93, 3))]
 tau=1
 
 #############################################################################
+
+## Clustering Analysis ##
 
 get_mses <- function(group_idx, lags_to_try = c(1), sq = FALSE, cross = FALSE, cross_itself = FALSE, 
                      gtrends = NULL, debug = FALSE) {
@@ -279,7 +285,9 @@ res
 
 #############################################################################
 
-get_mses_har <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
+## Modified HAR (Time and Log-scale) ##
+
+get_mses_har <- function(group_idx, har_days = c(5, 22)) {
   lag <- 1
   lagged_dataset <- make_lagged_dataset(lag)
   x <- lagged_dataset[[1]]
@@ -301,27 +309,18 @@ get_mses_har <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
   n_windows <- nrow(x) - window_length
   coef_arr <- c()
   mse_grp <- 0
-  mse_rw <- 0
-  
+
   tmp_cnt <- 1
   
   for (i in group_idx) {
     coefs <- c()
     err <- c()
-    err_rw <- c()
-    
+
     for (j in 1:n_windows) {
       x_data <- x[j:(j+window_length),]
       rel_cols <- seq(0, length(har_days)) * 31 + i
       x_data <- data.frame(x_data) %>% select(rel_cols)
       y_data <- unlist(y[j:(j+window_length-1), ..i])
-
-      
-      #print(head(x_data))
-      #toRet <- list()
-      #toRet[[1]] <- x_data
-      #toRet[[2]] <- y_data
-      #return(toRet)
       
       train_x <- x_data[1:(nrow(x_data) - 1),]
       test_x <- x_data[nrow(x_data),]
@@ -334,7 +333,6 @@ get_mses_har <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
       # check error only when the actual value is present
       if (is.na(rv_actual_val) == FALSE){
         err <- c(err, (rv_pred - rv_actual_val)^2)
-        err_rw <- c(err_rw, (unlist(y[(j+window_length - 1),..i]) - rv_actual_val)^2)
       }
       
       # size of coefs: no. of covariates * no. of windows
@@ -345,18 +343,11 @@ get_mses_har <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
     coef_arr[[tmp_cnt]] <- coefs
     tmp_cnt <- tmp_cnt + 1
     mse_grp <- cbind(mse_grp, err)
-    mse_rw <- cbind(mse_rw, err_rw)
-  }
-  if(debug) {
-    toRet <- list()
-    toRet[[1]] <- mse_grp[, 2:(ncol(mse_grp))]
-    toRet[[2]] <- mse_rw[, 2:(ncol(mse_rw))]
-    return(toRet)
   }
   return(mse_grp)[, 2:(ncol(mse_grp))]
 }
 
-get_mses_har_ln <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
+get_mses_har_ln <- function(group_idx, har_days = c(5, 22)) {
   lag <- 1
   lagged_dataset <- make_lagged_dataset(lag)
   x <- lagged_dataset[[1]]
@@ -380,15 +371,13 @@ get_mses_har_ln <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
   n_windows <- nrow(x) - window_length
   coef_arr <- c()
   mse_grp <- 0
-  mse_rw <- 0
-  
+
   tmp_cnt <- 1
   
   for (i in group_idx) {
     coefs <- c()
     err <- c()
-    err_rw <- c()
-    
+
     for (j in 1:n_windows) {
       x_data <- x[j:(j+window_length),]
       rel_cols <- seq(0, length(har_days)) * 31 + i
@@ -396,13 +385,6 @@ get_mses_har_ln <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
       y_data <- unlist(y[j:(j+window_length-1), ..i])
       y_data[y_data == 0] <- 1e-15
       y_data <- log(y_data)
-      
-      
-      #print(head(x_data))
-      #toRet <- list()
-      #toRet[[1]] <- x_data
-      #toRet[[2]] <- y_data
-      #return(toRet)
       
       train_x <- x_data[1:(nrow(x_data) - 1),]
       test_x <- x_data[nrow(x_data),]
@@ -415,7 +397,6 @@ get_mses_har_ln <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
       # check error only when the actual value is present
       if (is.na(rv_actual_val) == FALSE){
         err <- c(err, (rv_pred - rv_actual_val)^2)
-        err_rw <- c(err_rw, (unlist(y[(j+window_length - 1),..i]) - rv_actual_val)^2)
       }
       
       # size of coefs: no. of covariates * no. of windows
@@ -426,24 +407,17 @@ get_mses_har_ln <- function(group_idx, har_days = c(5, 22), debug = FALSE) {
     coef_arr[[tmp_cnt]] <- coefs
     tmp_cnt <- tmp_cnt + 1
     mse_grp <- cbind(mse_grp, err)
-    mse_rw <- cbind(mse_rw, err_rw)
-  }
-  if(debug) {
-    toRet <- list()
-    toRet[[1]] <- mse_grp[, 2:(ncol(mse_grp))]
-    toRet[[2]] <- mse_rw[, 2:(ncol(mse_rw))]
-    return(toRet)
   }
   return(mse_grp)[, 2:(ncol(mse_grp))]
 }
 
 #############################################################################
 
-split_mses <- function(mses, max_har_days) {
+split_mses <- function(mses, max_har_days, start_idx = 2) {
   split_idx <- which(all_dates == '2020-02-01') - 90 - max_har_days
   post_feb <- mses[split_idx:(nrow(mses)),]
   toRet <- cbind(colMeans(post_feb), colMeans(mses))
-  return(toRet[2:nrow(toRet),])
+  return(toRet[start_idx:nrow(toRet),])
 }
 
 #############################################################################
@@ -515,7 +489,9 @@ write.csv(data.frame(allgrp4_har), "grp4.csv", row.names = FALSE)
 
 #############################################################################
 
-get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5), debug = FALSE) {
+## Modified HAR (Residuals) ##
+
+get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5)) {
   lag <- 1
   lagged_dataset <- make_lagged_dataset(lag)
   x <- lagged_dataset[[1]]
@@ -539,8 +515,7 @@ get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5), debug = FALSE) 
   n_windows <- nrow(x) - window_length
   coef_arr <- c()
   mse_grp <- 0
-  mse_rw <- 0
-  
+
   tmp_cnt <- 1
   
   for (i in group_idx) {
@@ -558,13 +533,6 @@ get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5), debug = FALSE) 
       y_data1[y_data1 == 0] <- 1e-15
       y_data1 <- log(y_data1)
       
-      
-      #print(head(x_data))
-      #toRet <- list()
-      #toRet[[1]] <- x_data
-      #toRet[[2]] <- y_data
-      #return(toRet)
-      
       train_x1 <- x_data1[1:(nrow(x_data1) - 1),]
       test_x1 <- x_data1[nrow(x_data1),]
       linear_mod <- lm(y_data1 ~ ., data = data.frame(train_x1))
@@ -581,7 +549,6 @@ get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5), debug = FALSE) 
       # check error only when the actual value is present
       if (is.na(rv_actual_val) == FALSE){
         err <- c(err, (rv_pred - rv_actual_val)^2)
-        err_rw <- c(err_rw, (unlist(y[(j+window_length - 1),..i]) - rv_actual_val)^2)
       }
       
       # size of coefs: no. of covariates * no. of windows
@@ -592,18 +559,11 @@ get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5), debug = FALSE) 
     coef_arr[[tmp_cnt]] <- coefs
     tmp_cnt <- tmp_cnt + 1
     mse_grp <- cbind(mse_grp, err)
-    mse_rw <- cbind(mse_rw, err_rw)
-  }
-  if(debug) {
-    toRet <- list()
-    toRet[[1]] <- mse_grp[, 2:(ncol(mse_grp))]
-    toRet[[2]] <- mse_rw[, 2:(ncol(mse_rw))]
-    return(toRet)
   }
   return(mse_grp)[, 2:(ncol(mse_grp))]
 }
 
-get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5), debug = FALSE) {
+get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5)) {
   lag <- 1
   lagged_dataset <- make_lagged_dataset(lag)
   x <- lagged_dataset[[1]]
@@ -629,15 +589,13 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5), debug = FALSE)
   n_windows <- nrow(x) - window_length
   coef_arr <- c()
   mse_grp <- 0
-  mse_rw <- 0
-  
+
   tmp_cnt <- 1
   
   for (i in group_idx) {
     coefs <- c()
     err <- c()
-    err_rw <- c()
-    
+
     for (j in 1:n_windows) {
       x_data <- x[j:(j+window_length),]
       rel_cols <- seq(0, length(har_days)) * 31 + i
@@ -671,7 +629,6 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5), debug = FALSE)
       # check error only when the actual value is present
       if (is.na(rv_actual_val) == FALSE){
         err <- c(err, (rv_pred - rv_actual_val)^2)
-        err_rw <- c(err_rw, (unlist(y[(j+window_length - 1),..i]) - rv_actual_val)^2)
       }
       
       # size of coefs: no. of covariates * no. of windows
@@ -682,13 +639,6 @@ get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5), debug = FALSE)
     coef_arr[[tmp_cnt]] <- coefs
     tmp_cnt <- tmp_cnt + 1
     mse_grp <- cbind(mse_grp, err)
-    mse_rw <- cbind(mse_rw, err_rw)
-  }
-  if(debug) {
-    toRet <- list()
-    toRet[[1]] <- mse_grp[, 2:(ncol(mse_grp))]
-    toRet[[2]] <- mse_rw[, 2:(ncol(mse_rw))]
-    return(toRet)
   }
   return(mse_grp)[, 2:(ncol(mse_grp))]
 }
@@ -712,3 +662,256 @@ write.csv(data.frame(grp1_resid), "grp1_resid.csv", row.names = FALSE)
 write.csv(data.frame(grp2_resid), "grp2_resid.csv", row.names = FALSE)
 write.csv(data.frame(grp3_resid), "grp3_resid.csv", row.names = FALSE)
 write.csv(data.frame(grp4_resid), "grp4_resid.csv", row.names = FALSE)
+
+#############################################################################
+
+get_mses_rw <- function(group_idx) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  y <- lagged_dataset[[2]]
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  toRet <- c()
+  
+  for (i in group_idx) {
+    rv_pred <- y[window_length:(nrow(y)-1), ..i]
+    rv_actual <- y[(window_length + 1):(nrow(y)), ..i]
+    toRet <- cbind(toRet, (rv_actual - rv_pred)^2)
+  }
+  return(toRet)
+}
+
+## Bar Plot vs. RW ##
+
+mses_rw <- get_mses_rw(seq(1, 31))
+mses_mod_har <- get_mses_har_ln(group_idx = seq(1, 31), har_days = h_days_2)
+toPlot <- cbind(split_mses(mses_mod_har, 5), split_mses(mses_rw, 0, start_idx = 1))
+toPlot <- toPlot[, c(1, 3)]
+colnames(toPlot) <- c('Har(1, 3, 5) with log scale', 'Random Walk')
+rownames(toPlot) <- colnames(realized_covariances)
+prev_mar <- par()$mar
+prev_mgp <- par()$mgp
+par(mar = c(6.3, 6.3, 4.1, 2.1))
+par(mgp = c(5, 1, 0))
+barplot(t(toPlot), beside=TRUE, ylab="MSE", 
+        cex.names=0.8, cex.lab = .8, las=2, col=c("black","lightgrey"))
+box(bty="l")
+par(mar = prev_mar)
+par(mgp = prev_mgp)
+
+## Table Values ##
+grp1_rw <- mean(split_mses(get_mses_rw(group1_idx), 1, start_idx=1)[,1])
+grp2_rw <- mean(split_mses(get_mses_rw(group2_idx), 1, start_idx=1)[,1])
+grp3_rw <- mean(split_mses(get_mses_rw(group3_idx), 1, start_idx=1)[,1])
+grp4_rw <- mean(split_mses(get_mses_rw(group4_idx), 1, start_idx=1)[,1])
+grp1_postfeb <- colMeans(allgrp1_har[,seq(1, ncol(allgrp1_har), 2)])
+grp2_postfeb <- colMeans(allgrp2_har[,seq(1, ncol(allgrp2_har), 2)])
+grp3_postfeb <- colMeans(allgrp3_har[,seq(1, ncol(allgrp3_har), 2)])
+grp4_postfeb <- colMeans(allgrp4_har[,seq(1, ncol(allgrp4_har), 2)])
+grp1_postfeb_resid <- colMeans(grp1_resid[,seq(1, ncol(grp1_resid), 2)])
+grp2_postfeb_resid <- colMeans(grp2_resid[,seq(1, ncol(grp2_resid), 2)])
+grp3_postfeb_resid <- colMeans(grp3_resid[,seq(1, ncol(grp3_resid), 2)])
+grp4_postfeb_resid <- colMeans(grp4_resid[,seq(1, ncol(grp4_resid), 2)])
+tab_vals <- cbind(c(grp1_rw, grp1_postfeb, grp1_postfeb_resid),
+                  c(grp2_rw, grp2_postfeb, grp2_postfeb_resid),
+                  c(grp3_rw, grp3_postfeb, grp3_postfeb_resid),
+                  c(grp4_rw, grp4_postfeb, grp4_postfeb_resid))
+wts <- c(length(group1_idx), length(group2_idx), length(group3_idx), length(group4_idx))
+wts <- wts / sum(wts)
+overall <- as.matrix(tab_vals) %*% matrix(wts, ncol = 1, nrow = 4)
+tab_vals <- cbind(tab_vals, overall)
+colnames(tab_vals) <- c('Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'Overall')
+rownames(tab_vals) <- c('Random Walk', 
+                        'HAR(1, 5, 22)', 'HAR(1, 5, 22), log', 
+                        'HAR(1, 3, 5)', 'HAR(1, 3, 5), log', 
+                        'HAR(1, 5, 10, 22)', 'HAR(1, 5, 10, 22), log',
+                        'HAR(1, 3, 5, 10, 22)', 'HAR(1, 3, 5, 10, 22), log',
+                        'HAR(1, 3, 5), log, lm on others',
+                        'HAR(1, 3, 5), log, lm on squares')
+
+#############################################################################
+
+get_preds_har <- function(group_idx, har_days = c(5, 22)) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  idx_names <- colnames(x)
+  for(har_day in har_days) {
+    toAdd <- as.data.frame(rollmean(zoo(x[, 1:31]), har_day))
+    colnames(toAdd) <- paste0(idx_names, "_rm", har_day)
+    pad <- as.data.frame(matrix(NA, nrow = (har_day - 1), ncol = ncol(toAdd)))
+    colnames(pad) <- paste0(idx_names, "_rm", har_day)
+    toAdd <- rbind(pad, toAdd)
+    x <- cbind(x, toAdd) 
+  }
+  x <- x[(max(har_days):nrow(x)),]
+  x <- data.matrix(x)
+  y <- lagged_dataset[[2]]
+  y <- tail(y, nrow(x))
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  pred_grp <- c()
+  
+  tmp_cnt <- 1
+  
+  for (i in group_idx) {
+    preds <- c()
+    
+    for (j in 1:n_windows) {
+      x_data <- x[j:(j+window_length),]
+      rel_cols <- seq(0, length(har_days)) * 31 + i
+      x_data <- data.frame(x_data) %>% select(rel_cols)
+      y_data <- unlist(y[j:(j+window_length-1), ..i])
+      
+      train_x <- x_data[1:(nrow(x_data) - 1),]
+      test_x <- x_data[nrow(x_data),]
+      
+      linear_mod <- lm(y_data ~ ., data = data.frame(train_x))
+      rv_pred <- sum(linear_mod$coefficients * c(1, as.numeric(test_x)), na.rm = TRUE)
+      preds <- c(preds, rv_pred)
+    }
+    pred_grp <- cbind(pred_grp, preds)
+  }
+  return(pred_grp)[, 2:(ncol(pred_grp))]
+}
+
+get_preds_har_ln <- function(group_idx, har_days = c(5, 22)) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  x <- data.frame(x)
+  x[x == 0] <- 1e-15
+  x <- log(x)
+  idx_names <- colnames(x)
+  for(har_day in har_days) {
+    toAdd <- as.data.frame(rollmean(zoo(x[, 1:31]), har_day))
+    colnames(toAdd) <- paste0(idx_names, "_rm", har_day)
+    pad <- as.data.frame(matrix(NA, nrow = (har_day - 1), ncol = ncol(toAdd)))
+    colnames(pad) <- paste0(idx_names, "_rm", har_day)
+    toAdd <- rbind(pad, toAdd)
+    x <- cbind(x, toAdd) 
+  }
+  x <- x[(max(har_days):nrow(x)),]
+  y <- lagged_dataset[[2]]
+  y <- tail(y, nrow(x))
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  pred_grp <- c()
+  
+  for (i in group_idx) {
+    preds <- c()
+    
+    for (j in 1:n_windows) {
+      x_data <- x[j:(j+window_length),]
+      rel_cols <- seq(0, length(har_days)) * 31 + i
+      x_data <- data.frame(x_data) %>% select(rel_cols)
+      y_data <- unlist(y[j:(j+window_length-1), ..i])
+      y_data[y_data == 0] <- 1e-15
+      y_data <- log(y_data)
+      
+      train_x <- x_data[1:(nrow(x_data) - 1),]
+      test_x <- x_data[nrow(x_data),]
+      
+      linear_mod <- lm(y_data ~ ., data = data.frame(train_x))
+      rv_pred <- exp(sum(linear_mod$coefficients * c(1, as.numeric(test_x)), na.rm = TRUE))
+      preds <- c(preds, rv_pred)
+    }
+    pred_grp <- cbind(pred_grp, preds)
+  }
+  return(pred_grp)[, 2:(ncol(pred_grp))]
+}
+
+grp1_preds <- get_preds_har(group1_idx, har_days = c(5, 22))
+grp2_preds <- get_preds_har(group2_idx, har_days = c(5, 22))
+grp3_preds <- get_preds_har(group3_idx, har_days = c(5, 22))
+grp4_preds <- get_preds_har(group4_idx, har_days = c(5, 22))
+all_preds <- get_preds_har(seq(1, 31), har_days = c(5, 22))
+colnames(all_preds) <- colnames(realized_covariances)
+toWrite <- data.frame(all_preds)
+write.csv(toWrite, "har_preds.csv", row.names = FALSE)
+
+grp1_preds_ln <- get_preds_har_ln(group1_idx, har_days = c(3, 5))
+grp2_preds_ln <- get_preds_har_ln(group2_idx, har_days = c(3, 5))
+grp3_preds_ln <- get_preds_har_ln(group3_idx, har_days = c(3, 5))
+grp4_preds_ln <- get_preds_har_ln(group4_idx, har_days = c(3, 5))
+all_preds_ln <- get_preds_har_ln(seq(1, 31), har_days = c(3, 5))
+colnames(all_preds_ln) <- colnames(realized_covariances)
+toWrite_ln <- data.frame(all_preds_ln)
+write.csv(toWrite_ln, "modhar_preds.csv", row.names = FALSE)
+
+#############################################################################
+
+normal_returns <- fread("data/normal_returns.csv")
+log_returns <- fread("data/log_returns.csv")
+log_returns_c <- fread("data/log_returns_closing.csv")
+normal_returns_feb_start <- which(normal_returns$Date == '2/1/2020')
+post_feb_normal_returns <- normal_returns[normal_returns_feb_start:nrow(normal_returns), c(-1)]
+log_returns_feb_start <- which(log_returns$Date == '2/1/2020')
+post_feb_log_returns <- log_returns[log_returns_feb_start:nrow(log_returns), c(-1)]
+log_returns_c_feb_start <- which(log_returns_c$Date == '2/1/2020')
+post_feb_log_returns_c <- log_returns[log_returns_c_feb_start:nrow(log_returns_c), c(-1)]
+index_names <- c("AEX", "AORD", "BFX", "BSESN", "BVLG", "BVSP", "DJI", "FCHI", "FTMIB", "FTSE",
+                 "GDAXI", "GSPTSE", "HSI", "IBEX", "IXIC", "KS11", "KSE", "MXX", "N225",
+                 "NSEI", "OMXC20", "OMXHPI", "OMXSPI", "OSEAX", "RUT", "SMSI", "SPX", "SSEC",
+                 "SSMI", "STI", "STOXX50E")
+
+kupiec_test <- function(returns, preds) {
+  preds <- sqrt(preds)
+  preds[is.nan(preds)] <- 0
+  vars <- qnorm(0.05)*preds
+  vars <- as.matrix(vars)
+  
+  returns <- as.matrix(returns)
+
+  for (i in seq(1, 31)) {
+    print(index_names[i])
+    tmp_vars <- vars[,as.numeric(i)]
+    tmp_rets <- unlist(returns[, (as.numeric(i))])
+    z <- kupiec(tmp_rets, tmp_vars, 0.95, verbose=TRUE, test="PoF")
+    print(z)
+  }
+} 
+
+traffic_light_test <- function(returns, preds) {
+  preds <- sqrt(preds)
+  preds[is.nan(preds)] <- 0
+  vars <- qnorm(0.05)*preds
+  vars <- as.matrix(vars)
+  
+  returns <- as.matrix(returns)  
+  red <- c()
+  yellow <- c()
+  green <- c()
+  
+  for (i in seq(1, 31)) {
+    res <- TL(y=unlist(returns[, as.numeric(i)]), VaR=unlist(vars[, as.numeric(i)]), VaR_level=0.95)
+    if (res$color == "red") {
+      red <- c(red, index_names[i])
+    }
+    
+    if (res$color == "yellow") {
+      yellow <- c(yellow, index_names[i])
+    }
+    
+    if (res$color == "green") {
+      green <- c(green, index_names[i])
+    }
+  }
+  
+  print("Red")
+  print(red)
+  print("Yellow")
+  print(yellow)
+  print("Green")
+  print(green)
+}
+
+kupiec_test(post_feb_log_returns, tail(all_preds, 58))
+traffic_light_test(post_feb_log_returns, tail(all_preds, 58))
+
+kupiec_test(post_feb_log_returns, tail(all_preds_ln, 58))
+traffic_light_test(post_feb_log_returns, tail(all_preds_ln, 58))
