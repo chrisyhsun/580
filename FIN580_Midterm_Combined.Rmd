@@ -3,15 +3,15 @@ title: 'FIN580: Midterm'
 author: "Chris, Utsav, Srishti"
 date: "Spring 2020"
 output:
-  html_document:
-    df_print: paged
+  pdf_document:
+    fig_caption: yes
     toc: no
     toc_depth: 4
   word_document:
     toc: no
     toc_depth: '4'
-  pdf_document:
-    fig_caption: yes
+  html_document:
+    df_print: paged
     toc: no
     toc_depth: 4
 geometry: margin=1.5in
@@ -20,7 +20,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(fig.align="center", fig.height=5.5, fig.width=6, collapse=TRUE, comment="", prompt=TRUE, echo=TRUE, cache=TRUE, autodep=TRUE, cache.comments=FALSE)
+knitr::opts_chunk$set(fig.align="center", fig.height=5.5, fig.width=6, collapse=TRUE, comment="", prompt=TRUE, echo=TRUE, cache=TRUE, autodep=TRUE, cache.comments=FALSE, eval=FALSE)
 options(width=63)
 ```
 
@@ -34,7 +34,8 @@ To forecast daily volatilities of major stock indexes after the COVID-19 outbrea
 
 # Data Preparation
 
-I use the following libraries and set my working directory.
+We use the following libraries.
+
 ```{r warning=FALSE, error=FALSE}
 library('fasttime')
 library('data.table')
@@ -58,12 +59,17 @@ library('tseries')
 library('segMGarch')
 ```
 
-Our dataset has values for daily open, close and RV for 31 indices. 
+
+## Data Cleaning
+
+Our dataset has values for daily open, close and RV for 31 indices - except IBEX and SPX (for which we have RR values). 
 
 ```{r read_data}
 data <- fread('data/data.csv')
 summary(data)
 ```
+
+We need to clean the data. Here we check for the differences between the two time formats, and see which symbols take either format.
 
 ```{r checking_time}
 times <- substr(data$Date, 12, nchar(data$Date))
@@ -84,11 +90,9 @@ for (sym in symbols) {
 print("Done")
 ```
 
-
 We first transform our data to show these values as columns (three for each index) such that each row corresponds to a unique day.
 
 ```{r transform_data}
-#transforming data to get value for each security as a column
 grid <- as.data.frame(as.character(unique(data$Date)))
 names(grid) <- "Date"
 symbols <- as.character(unique(data$Symbol))
@@ -97,12 +101,12 @@ for (i in 1:length(symbols)){
   names(mergewith) <- c("Date", paste0("open",symbols[i]), paste0("close",symbols[i]), paste0("rv",symbols[i]))
   grid <- merge(grid, mergewith, by=c("Date"), all = TRUE )
 }
-# grid has 5319 rows, and 94 columns
-sample <- grid[2625:5303,]
-# 2679 rows to get data starting from 2010 (we need to choose this carefully)
+
 index_names <- substr(symbols, 2, nchar(symbols))
 index_countries <- c("Amsterdam", "Australia", "Belgium", "India", "Portugal", "Brazil", "USA", "France", "Italy", "UK", "Germany", "Canada", "Hong Kong", "Spain", "USA", "Korea", "Pakistan", "Mexico", "Japan", "India2", "Denmark", "Finland", "Sweden", "Norway", "UK2", "Spain2", "USA", "China", "Switzerland", "Singapore", "EU")
 ```
+
+Checking how much data is missing
 
 ```{r na_data_function, cache=TRUE}
 count_col_na <- function(data) {
@@ -110,17 +114,16 @@ count_col_na <- function(data) {
 }
 ```
 
-Checking how much data is missing-
 ```{r}
 col <- seq(from=2, to=92, by = 3)
-sample2 <- sample[, col]
+sample2 <- grid[, col]
 colnames(sample2) <- index_names
-rownames(sample2) <- substr(sample$Date, 1, 10)
+rownames(sample2) <- substr(grid$Date, 1, 10)
 ```
 
 ```{r}
-index <- seq(2, nrow(sample), 500)
-date_labels <- substr(sample$Date[index], 1, 10)
+index <- seq(2, nrow(grid), 500)
+date_labels <- substr(grid$Date[index], 1, 10)
 vis_miss(sample2, show_perc_col=FALSE) +
   theme(axis.text.x = element_text(angle=90)) +
   scale_y_continuous(breaks = index, labels=date_labels) +
@@ -136,14 +139,15 @@ gg_miss_var(sample[,col])
 
 Also, we check what are the sizes of continuous gaps of data. The max continuous gaps as we already know are for BVLG and STI in the begining of the data. Apart from that the gap range is at max 5.
 
-Dates where no data is missing
+Dates where no data is missing - useful to create a partition for imputation.
+
 ```{r}
 ind <- which(rowSums(is.na(grid)) == 0)
 grid$Date[ind]
 ```
 
 
-## Different ways of dealing with missing data
+## Data Imputation
 
 **Linear interpolation**
 
@@ -157,13 +161,15 @@ linear_imputed_data <- na_interpolation(sample, option = "linear")
 spline_imputed_data <- na_interpolation(sample, option = "spline") 
 ```
 
+**Constant interpolation**
+
 ```{r}
 constant_imputed_data <- na.locf(sample, na.rm=FALSE)
 ```
 
-To visualize what's happening-
+Visualizing the imputations for:
 
-Want to see what happens in case of an index like AORD
+1) AORD (not much missing data)
 
 ```{r}
 plotNA.imputations(sample$open.AORD[1400:1800], linear_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
@@ -175,16 +181,14 @@ plotNA.imputations(sample$open.AORD[1400:1800], spline_imputed_data$open.AORD[14
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
-Constant Imputation
-
 ```{r}
 plotNA.imputations(sample$open.AORD[1400:1800], constant_imputed_data$open.AORD[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
-For STI which has a lot of missing data in the beginning itself what do the three models do-
+2) STI (lot of missing data - especially at the start)
 
-(The linear method basically fills one value for them all whereas spline does not, constant doesn't fill in any data.)
+(The linear method basically fills one value for them all whereas spline does not, constant/forward fill doesn't fill in any data.)
 
 ```{r}
 plotNA.imputations(sample$open.STI[1400:1800], linear_imputed_data$open.STI[1400:1800], ylab='', xlab='Date', main='', xaxt='n')
@@ -201,11 +205,64 @@ plotNA.imputations(sample$open.STI[1400:1800], constant_imputed_data$open.STI[14
 axis(1, at=c(0, 1/5, 2/5, 3/5, 4/5, 1), labels=substr(sample$Date[c(1400, 1480, 1560, 1640, 1720, 1800)], 1, 7), las=0)
 ```
 
-Linear interploation looks a like a good way of dealing with missing data. 
+## Checking for normality of $\epsilon_t$
+
+We calculate daily standardized returns and check for their normality using Shapiro-Wilk and Jarque-Bera Normality Tests. If p-value given by the test is greater than 0.05 then we can not reject the normality assumption.
+
+```{r}
+new_data <- fread('data/final_data.csv')
+new_data <- new_data[, -c(1, 96)]
+```
+
+```{r}
+col <- seq(from=2, to=92, by = 3)
+pvalsw <- c()
+pvaljb <- c()
+for (x in col){
+  sub <- new_data[,c(..x, ..x+1, ..x+2)]
+  eps <- log(sub[,2]/sub[,1])/sqrt(sub[,3])
+  eps <- unlist(eps)
+  print(paste(x, which(is.na(eps))))
+  eps <- eps[!is.na(eps)]
+  # Check: 11 25
+  # Check: "59 106" "59 131" "59 141" "59 187" "59 197" "59 207" "59 208"
+  a <- shapiro.test(eps)
+  b <- jarque.bera.test(eps)
+  pvalsw <- c(pvalsw, a$p.value)
+  pvaljb <- c(pvaljb, b$p.value)
+}
+```
+
+Plooting the barplots
+
+```{r}
+# Change pvalsw to pvaljb
+names(pvalsw) <- index_names
+barplot(pvalsw, ylim=c(0, 1), ylab='p-values', xlab='', las=2, cex.names=0.9)
+abline(h=0.05, lty=2, col='red')
+```
+
+Plotting both p-values together
+```{r}
+plot(pvalsw, pvaljb, ylim=c(0, 1), xlim=c(0,1), xlab="p-values (Shapiro-Wilk)", ylab="p-values (Jarque-Bera)")
+# text(pvalsw, pvaljb, index_names, cex=0.75)
+abline(h=0.05, lty=2, col='red')
+abline(v=0.05, lty=2, col='red')
+```
+
+Comparing the rejections from each test
+```{r}
+sw_reject <- which(pvalsw < 0.05)
+jb_reject <- which(pvaljb < 0.05)
+print(sw_reject)
+print(jb_reject)
+print(intersect(sw_reject, jb_reject))
+print(index_names[intersect(sw_reject, jb_reject)])
+```
 
 ## Working on what variables to use for predicting RVs
 
-As RVs are generally consistent over time, using lagged values as a variable would be a good idea. Here are the autocorrelation charts for each of the RV series-
+As RVs are generally consistent over time, using lagged values as a variable would be a good idea. We plot the autocorrelation charts for each of the RV series.
 
 ```{r}
 par(mfrow=c(4,4))
@@ -217,13 +274,10 @@ for (j in col){
 
 We would also be interested in seeing how the cross rv terms relate. As the interactions would be large (31C2 i.e. 465 terms), one of the ways that we decided to look at is average correlation over time using 500 values in each window. (Let us remove BVLG, FTMIB, STI and remove 1152 intial rows (now data starts from roughly Oct 2005) as their std would be zero when a constant value is imputed)
 
-
 ```{r}
 sample <- grid[year(grid$Date)>=2019,]
 col <- seq(from=4, to=94, by = 3)
 rvs <- na.locf(sample[,col], na.rm=FALSE) 
-#rvs <-  na_interpolation(sample[,col], option = "linear") 
-#rvs <- rvs[,-c(5,9,30)]
 window <- 500
 covars <- c()
 for (i in 1:(nrow(rvs)-(window-1))){
@@ -234,27 +288,7 @@ for (i in 1:(nrow(rvs)-(window-1))){
 plot(tail(grid$Date, length(covars)), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 500 days Correlation", col='blue' )
 ```
 
-```{r fig.width=7, fig.height=5,echo=FALSE}
-img <- readPNG("img/correlation.png")
-grid.newpage()
-grid.raster(img)
-```
-
-Further, writing the correlation column to the final data.
-
-```{r eval = F}
-correl <- as.data.frame(cbind(tail(grid$Date, length(covars)), covars))
-correl$V1 <- as.Date(correl$V1)
-names(correl)[1] <- "Date"
-correl <- na.omit(correl)
-sample <- grid[((year(grid$Date)>=2019 & month(grid$Date)>= 7)) | (year(grid$Date)>=2020),]
-correl <- correl[((year(correl$Date)>=2019 & month(correl$Date)>= 7)) | (year(correl$Date)>=2020),]
-finaldata <- merge(sample, correl, by=c("Date"), all = TRUE )
-finaldata <- na.locf(na.locf(finaldata, na.rm=FALSE) , na.rm = TRUE)
-write.csv(finaldata,"final_data.csv")
-```
-
-*90 day running correlation (linear)*
+Performing the same over a 90 day rolling window to identify local trends
 
 ```{r}
 col <- seq(from=4, to=94, by = 3)
@@ -270,26 +304,26 @@ for (i in 1:(nrow(rvs)-(window-1))){
 plot(as.Date(grid$Date[1601:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 90 days Correlation") # roughly starting from Sept, 2007
 ```
 
+Writing the correlation column (500 days window) to the final data.
 
-```{r}
-col <- seq(from=4, to=94, by = 3)
-rvs <- na.locf(grid[1512:5303,col], na.rm=FALSE) 
-rvs <- rvs[,-c(5,9,30)]
-covars <- c()
-window <- 90
-for (i in 1:(nrow(rvs)-(window-1))){
-  sub <- rvs[i:(window-1+i),]
-  mean_cor <- mean(cor(sub))
-  covars <- c(covars, mean_cor)
-}
-plot(as.Date(grid$Date[1601:5303]), covars, type='l', xlab="Years", ylab="Average Correlation", main = "Rolling 90 days Correlation") # roughly starting from Sept, 2007
+```{r eval = F}
+correl <- as.data.frame(cbind(tail(grid$Date, length(covars)), covars))
+correl$V1 <- as.Date(correl$V1)
+names(correl)[1] <- "Date"
+correl <- na.omit(correl)
+sample <- grid[((year(grid$Date)>=2019 & month(grid$Date)>= 7)) | (year(grid$Date)>=2020),]
+correl <- correl[((year(correl$Date)>=2019 & month(correl$Date)>= 7)) | (year(correl$Date)>=2020),]
+finaldata <- merge(sample, correl, by=c("Date"), all = TRUE )
+finaldata <- na.locf(na.locf(finaldata, na.rm=FALSE) , na.rm = TRUE)
+write.csv(finaldata,"final_data.csv")
 ```
+
 
 This variable could be used for switching between models as when market is in distress, correlations tend to peak and maybe a different model from usual could be suggested.
 
 ## Addtional datasets that we can use
 
-Maybe like NVIX or Economic Uncertainity Data - It is however only mothly and last data point available is Jan 2020 so we decided against using them for predictions in May, 2020.
+Maybe like NVIX or Economic Uncertainity Data - it is however only mothly and last data point available is Jan 2020 so we decided against using them for predictions in May 2020.
 
 Another dataset that we looked at is Google trends.
 
@@ -318,14 +352,7 @@ big_data <- do.call(cbind, datalist)
 big_data[big_data == "<1"] <- toReplace
 ```
 
-```{r eval = F}
-par(mfrow=c(4,3))
-for (i in 13:24){
-  plot(d[,(i+1)], type = 'l', main=paste0(countries[i]), ylab='Word Frequency', xlab='Days')
-}
-```
-
-For plotting correlation chart using google trend series - 
+For plotting correlation heat map using google trend series
 
 ```{r eval = F}
 d <- cbind(rownames(big_data), data.frame(big_data, row.names=NULL))
@@ -351,89 +378,331 @@ ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
  coord_fixed()
 ```
 
-## Checking for normality of $\epsilon_t$
 
-We calculate daily standardized returns and check for their normality using Shapiro-Wilk Normality Test. If p-value given by the test is greater than 0.05 then we can not reject the normality assumption.
+## Using Adaptive LASSO for variable selection
 
+We find the average proportion of beta assigned to each covariate for every model that we run
 ```{r}
-new_data <- fread('data/final_data.csv')
-new_data <- new_data[, -c(1, 96)]
-```
-
-```{r}
-#grid
-col <- seq(from=2, to=92, by = 3)
-pvalsw <- c()
-pvaljb <- c()
-for (x in col){
-  sub <- new_data[,c(..x, ..x+1, ..x+2)]
-  eps <- log(sub[,2]/sub[,1])/sqrt(sub[,3])
-  eps <- unlist(eps)
-  print(paste(x, which(is.na(eps))))
-  eps <- eps[!is.na(eps)]
-  # Check: 11 25
-  # Check: "59 106" "59 131" "59 141" "59 187" "59 197" "59 207" "59 208"
-  a <- shapiro.test(eps)
-  b <- jarque.bera.test(eps)
-  pvalsw <- c(pvalsw, a$p.value)
-  pvaljb <- c(pvaljb, b$p.value)
-  #qqnorm(eps)
-  #abline(0,1)
+make_lagged_dataset <- function(lag) {
+  n_rows <- nrow(realized_covariances) - lag
   
-  #h <- hist(eps, breaks = 10, density = 10,
-          #col = "lightgray", xlab = "Accuracy", main = "Overall") 
-  #xfit <- seq(min(eps), max(eps), length = 40) 
-  #yfit <- dnorm(xfit, mean = mean(eps), sd = sd(eps)) 
-  #yfit <- yfit * diff(h$mids[1:2]) * length(eps) 
-  #lines(xfit, yfit, col = "black", lwd = 2)
+  x <- c()
+  y <- realized_covariances[(lag+1):nrow(realized_covariances), ]
+  
+  for (i in 1:lag) {
+    x <- cbind(x, realized_covariances[(lag+1-i):(nrow(realized_covariances)-i), ])   
+  }
+  
+  return (list(x, y)) 
+}
+
+lag <- 1
+lagged_dataset <- make_lagged_dataset(lag)
+x <- lagged_dataset[[1]]
+y <- lagged_dataset[[2]]
+
+window_length <- 90
+n_windows <- nrow(x) - window_length + 1
+coef_arr <- c()
+# For each realized covariance, train a LASSO model
+for (i in 1:31) {
+  coefs <- c()
+  for (j in 1:n_windows) {
+    x_data <- x[j:(j+window_length-1),]
+    y_data <- unlist(y[j:(j+window_length-1), ..i])
+    
+    lasso <- ic.glmnet(x_data, y_data, crit="aic", intercept = FALSE)
+    # size of coefs: no. of covariates * no. of windows
+    # Stores the lasso coefficients for every windows
+    coefs <- cbind(coefs, coef(lasso))
+  }
+  # coef_arr stores coefs for each of the 31 dependent variables
+  coef_arr[[i]] <- coefs
+}
+# Calculate the proportion of beta assigned to each predictor
+coef_arr_norm <- c()
+for (i in 1:31) {
+  coefs <- coef_arr[[i]]
+  # normalized_coefs is also of size no. of covariates * no. of windows
+  # except that every column has been normalized to add up to 1
+  normalized_coefs <- abs(coefs) %*% diag(1/colSums(abs(coefs)))
+  # Take average across all windows to get vector of length no. of covariates
+  # representing average proportion of beta on each covariate.
+  coef_arr_norm[[i]] <- rowMeans(normalized_coefs)
 }
 ```
 
-At 5% significance level, we have to reject the null hypothesis (that the data is normal) for 24 out of 31 indices.
+
+Then, we run k-means clustering to find the common dependencies.
 
 ```{r}
-plot(pvaljb, ylab='p-values', type='n', xaxt='n', xlab='')
-text(pvaljb, index_names, cex=0.75)
-abline(h=0.05, lty=2, col='red')
+dd  <-  as.data.frame(matrix(unlist(coef_arr_norm), nrow=length(unlist(coef_arr_norm[1]))))
+# first row all zeros bc no intercept
+dd <- dd[-1,]
+
+#intuitive starts (India1, USA2, China, UK1)
+starts <- c(4, 15, 28, 10)
+start_mat <- c()
+for(s in starts) {
+  start_mat <- cbind(start_mat, dd[,s])
+}
+
+colnames(dd) <- index_countries
+rownames(dd) <- paste(index_countries, "_rv", sep="")
+
+tmp <- Kmeans(t(dd), centers = t(start_mat), method = "maximum")
+sort(tmp$cluster)
 ```
+
+Finding the optimal number of clusters using elbow plots
+```{r}
+get_inter_cluster_dists <- function(centers) {
+  toRet <- 0
+  for(i in 1:nrow(centers)) {
+    for(j in i:nrow(centers)) {
+      toRet <- toRet + (dist(rbind(centers[i,], centers[j,]))^2)
+    }
+  }
+  return(mean(toRet) / length(toRet))
+}
+
+elbow_scores <- c()
+for(i in 1:10) {
+  tmp <- Kmeans(t(dd), centers = i, method = "maximum", iter.max = 1000)
+  inter_cluster_dists <- get_inter_cluster_dists(tmp$centers)
+  elbow_scores <- c(elbow_scores, sum(tmp$withinss) / inter_cluster_dists )
+}
+plot(1:10, elbow_scores, type='l', col='blue',
+     xlab = 'Number of centers', ylab = 'Score',
+     main = 'Score with increased # centers in kmeans')
+
+```
+
+We get the following clusters:
+```{r}
+group1 <- c(3, 4, 5, 8, 9, 20, 21, 22, 23, 24, 26)
+group2 <- c(1, 2, 6, 7, 11, 12, 15, 25, 27, 29, 31)
+group3 <- c(18, 28)
+group4 <- c(10, 13, 14, 16, 17, 19, 30)
+```
+
+Now, we try to find the best dataset for each cluster. We check for different lags, sqquared terms, cross terms, and Google Trends data.
 
 ```{r}
-names(pvalsw) <- index_names
-barplot(pvalsw, ylim=c(0, 1), ylab='p-values', xlab='', las=2, cex.names=0.9)
-# text(pvalsw, index_names, cex=0.75)
-abline(h=0.05, lty=2, col='red')
+realized_covariances <- fread('data/final_data.csv')
+dates <- realized_covariances[, c("Date")]
+realized_covariances <- realized_covariances[, -c("V1", "Date", "covars")]
+realized_covariances <- realized_covariances[, c(seq(3, 93, 3))]
 ```
 
-```{r fig.width=5, fig.height=4,echo=FALSE}
-img <- readPNG("img/pvalue.png")
-grid.newpage()
-grid.raster(img)
-```
+
+Running Adaptive LASSO to find the relevant variables and MSEs for each new dataset.
 
 ```{r}
-plot(pvaljb, main="P-values for different Indices - JB", ylab='p value')
-abline(h=0.05, lty=2, col='red')
+# x: x from make_lagged_dataset
+# indices: indices for which you want all combinations of cross terms
+# itself: whether to multiply a vector by itself; default is to not include these
+add_cross_terms <- function(x, indices, itself = FALSE) {
+  toRet <- x
+  combos <- combinations(length(indices), 2, indices)
+  for(r_idx in seq(1, dim(combos)[1])) {
+    c_idx1 <- combos[r_idx,][1]
+    c_idx2 <- combos[r_idx,][2]
+    toAdd <- x[,..c_idx1] * x[,..c_idx2]
+    toRet <- cbind(toRet, toAdd)
+  }
+  if(itself) {
+    for(c_idx in indices) {
+      toAdd <- x[,..c_idx] * x[,..c_idx]
+      toRet <- cbind(toRet, toAdd)
+    }
+  }
+  return(toRet)
+}
+
+get_mses <- function(group_idx, lags_to_try = c(1), sq = FALSE, cross = FALSE, cross_itself = FALSE, 
+                     gtrends = NULL, debug = FALSE) {
+  
+  mse_mat <- matrix(0, nrow = length(lags_to_try), ncol = length(group_idx))
+  mse_rw_mat <- matrix(0, nrow = length(lags_to_try), ncol = length(group_idx))
+  
+  for(l_idx in 1:length(lags_to_try)) {
+    lag <- lags_to_try[l_idx]
+    lagged_dataset <- make_lagged_dataset(lag)
+    x <- lagged_dataset[[1]]
+    if(sq) { x <- cbind(x, x*x)}
+    if(cross) { x <- add_cross_terms(x, group_idx, itself = cross_itself) }
+    if(!is.null(gtrends)) {
+      gtrends <- gtrends[1:(dim(gtrends)[1] - lag),]
+      x <- cbind(x, gtrends)
+    }
+    x <- data.matrix(x)
+    y <- lagged_dataset[[2]]
+    
+    window_length <- 90
+    n_windows <- nrow(x) - window_length
+    coef_arr <- c()
+    mse_grp <- 0
+    mse_rw <- 0
+    
+    tmp_cnt <- 1
+    
+    for (i in group_idx) {
+      coefs <- c()
+      err <- c()
+      err_rw <- c()
+  
+      for (j in 1:n_windows) {
+        x_data <- x[j:(j+window_length-1),]
+        y_data <- unlist(y[j:(j+window_length-1), ..i])
+        
+        lasso <- ic.glmnet(x_data, y_data, crit="bic", intercept = FALSE, maxit = 1e+07)
+        first.step.coef <- coef(lasso)[-1]
+        pf <- (abs(first.step.coef)+1/sqrt(abs(dim(x_data)[1])))^(-tau)
+        adalasso <- ic.glmnet(x_data,y_data,crit="bic",penalty.factor=pf, intercept = FALSE)
+        rv_pred <- predict(adalasso, x[(j+window_length),])[1][1]
+        rv_actual_val <-unlist(y[(j+window_length),..i])
+        
+        # check error only when the actual value is present
+        if (is.na(rv_actual_val) == FALSE){
+          err <- c(err, (rv_pred - rv_actual_val)^2)
+          err_rw <- c(err_rw, (unlist(y[(j+window_length - 1),..i]) - rv_actual_val)^2)
+        }
+        
+        # size of coefs: no. of covariates * no. of windows
+        # Stores the lasso coefficients for every windows
+        coefs <- cbind(coefs, coef(adalasso))
+      }
+      # coef_arr stores coefs for each of the 31 dependent variables
+      coef_arr[[tmp_cnt]] <- coefs
+      tmp_cnt <- tmp_cnt + 1
+      mse_grp <- c(mse_grp, mean(err))
+      mse_rw <- c(mse_rw, mean(err_rw))
+    }
+    
+    mse_mat[l_idx,] <- mse_grp[2:length(mse_grp)]
+    mse_rw_mat[l_idx,] <- mse_rw[2:length(mse_rw)]
+  }
+  if(debug) {
+    toRet <- list()
+    toRet[[1]] <- mse_mat
+    toRet[[2]] <- mse_rw_mat
+    return(toRet)
+  }
+  return(mse_mat)
+}
+
+countries <- c("US", "IT", "CA", "IN", "CN", 
+               "MX", "SG", "CH", "ES", "GB", "SE", "DK", 
+               "JP", "PK", "KR", "HK", "DE", "AU", "BE", 
+               "NL", "PT", "BR", "FR", "FI")
+# US, Italy, Canada, India, China, 
+# Mexico, Singapore, Switzerland, Spain, United Kingdom, Stockholm, Copenhagen, 
+# Japan, Pakistan, South Korea, Hong Kong, Germany, Australia, Belgium, 
+# Netherlands, Portugal, Brazil, France, Finland
+
+group1_idx <- c(3, 4, 5, 8, 9, 20, 21, 22, 23, 24, 26)
+group3_idx <- c(18, 28)
+group2_idx <- c(1, 2, 6, 7, 11, 12, 15, 25, 27, 29, 31)
+group4_idx <- c(10, 13, 14, 16, 17, 19, 30)
+lags_to_try <- c(1, 2, 3, 4, 5)
+
+words <- c("coronavirus", "COVID-19")
+start <- as.Date(all_dates[1])
+end <- as.Date(Sys.Date())
+
+countries1 <- c("BE", "IN", "PT", "FR", "IT", "FI", "DK", "ES")
+gtrends1 <- get_word_data(words, countries1, start, end)
+gtrends1 <- gtrends1[which(rownames(gtrends1) %in% all_dates),]
+gtrends1[is.na(gtrends1)] <- 0
+
+countries2 <- c("AU", "BR", "US", "DE", "CA", "GB", "CH")
+gtrends2 <- get_word_data(words, countries2, start, end)
+gtrends2 <- gtrends2[which(rownames(gtrends2) %in% all_dates),]
+gtrends2[is.na(gtrends2)] <- 0
+
+countries3 <- c("MX", "CN")
+gtrends3 <- get_word_data(words, countries3, start, end)
+gtrends3 <- gtrends3[which(rownames(gtrends3) %in% all_dates),]
+gtrends3[is.na(gtrends3)] <- 0
+
+countries4 <- c("GB", "HK", "ES", "KR", "PK", "JP", "SG")
+gtrends4 <- get_word_data(words, countries4, start, end)
+gtrends4 <- gtrends4[which(rownames(gtrends4) %in% all_dates),]
+gtrends4[is.na(gtrends4)] <- 0
+
+
+labels <- c('Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Lag 5',
+            'Squared', 'Cross', 'Google trends')
+
+grp1_res_lag <- get_mses(group1_idx, lags_to_try)
+grp1_cluster_mses_lag <- rowMeans(grp1_res_lag)
+grp1_res_sq <- get_mses(group1_idx, sq = TRUE)
+grp1_cluster_mses_sq <- mean(grp1_res_sq)
+grp1_res_cross <- get_mses(group1_idx, cross = TRUE, cross_itself = TRUE)
+grp1_cluster_mses_cross <- mean(grp1_res_cross)
+grp1_res_gtrends <- get_mses(group1_idx, gtrends = gtrends1)
+grp1_cluster_mses_gtrends <- mean(grp1_res_gtrends) 
+
+grp2_res_lag <- get_mses(group2_idx, lags_to_try)
+grp2_cluster_mses_lag <- rowMeans(grp2_res_lag)
+grp2_res_sq <- get_mses(group2_idx, sq = TRUE)
+grp2_cluster_mses_sq <- mean(grp2_res_sq)
+grp2_res_cross <- get_mses(group2_idx, cross = TRUE, cross_itself = TRUE)
+grp2_cluster_mses_cross <- mean(grp2_res_cross)
+grp2_res_gtrends <- get_mses(group2_idx, gtrends = gtrends2)
+grp2_cluster_mses_gtrends <- mean(grp2_res_gtrends) 
+
+grp3_res_lag <- get_mses(group3_idx, lags_to_try = lags_to_try)
+grp3_cluster_mses_lag <- rowMeans(grp3_res_lag)
+grp3_res_sq <- get_mses(group3_idx, sq = TRUE)
+grp3_cluster_mses_sq <- mean(grp3_res_sq)
+grp3_res_cross <- get_mses(group3_idx, cross = TRUE, cross_itself = TRUE)
+grp3_cluster_mses_cross <- mean(grp3_res_cross) 
+grp3_res_gtrends <- get_mses(group3_idx, gtrends = gtrends3)
+grp3_cluster_mses_gtrends <- mean(grp3_res_gtrends) 
+
+grp4_res_lag <- get_mses(group4_idx, lags_to_try)
+grp4_cluster_mses_lag <- rowMeans(grp4_res_lag)
+grp4_res_sq <- get_mses(group4_idx, sq = TRUE)
+grp4_cluster_mses_sq <- mean(grp4_res_sq)
+grp4_res_cross <- get_mses(group4_idx, cross = TRUE, cross_itself = TRUE)
+grp4_cluster_mses_cross <- mean(grp4_res_cross)
+grp4_res_gtrends <- get_mses(group4_idx, gtrends = gtrends4)
+grp4_cluster_mses_gtrends <- mean(grp4_res_gtrends) 
+
+grp1_all_mses <- c(grp1_cluster_mses_lag, grp1_cluster_mses_sq, grp1_cluster_mses_cross, grp1_cluster_mses_gtrends)
+grp2_all_mses <- c(grp2_cluster_mses_lag, grp2_cluster_mses_sq, grp2_cluster_mses_cross, grp2_cluster_mses_gtrends)
+grp3_all_mses <- c(grp3_cluster_mses_lag, grp3_cluster_mses_sq, grp3_cluster_mses_cross, grp3_cluster_mses_gtrends)
+grp4_all_mses <- c(grp4_cluster_mses_lag, grp4_cluster_mses_sq, grp4_cluster_mses_cross, grp4_cluster_mses_gtrends)
+res <- cbind(grp1_all_mses, grp2_all_mses, grp3_all_mses, grp4_all_mses)
+
+rownames(res) <- labels
 ```
 
-Plotting both p-values together
-```{r}
-plot(pvalsw, pvaljb, ylim=c(0, 1), xlim=c(0,1), xlab="p-values (Shapiro-Wilk)", ylab="p-values (Jarque-Bera)")
-# text(pvalsw, pvaljb, index_names, cex=0.75)
-abline(h=0.05, lty=2, col='red')
-abline(v=0.05, lty=2, col='red')
+Graph the change in number of relevant variables over time.
+```{r relevant_vars_graphs}
+n_relevant_vars <- fread("data/prop_sig_coef_per_window.csv")
+plot(unlist(n_relevant_vars[, 1]), type='s', col='orange', ylim=c(0, 1),
+     xlab='', ylab='Percentage of Relevant Variables', xaxt='n')
+axis(1, at=c(seq(1, 120, 20), 119), labels=substr(y_date[c(seq(1, 120, 20), 119)], 1, 7), las=1, cex.axis=0.95)
+lines(unlist(n_relevant_vars[, 2]), type='s', col='red')
+lines(unlist(n_relevant_vars[, 3]), type='s', col='green')
+lines(unlist(n_relevant_vars[, 4]), type='s', col='blueviolet')
+lines(rowMeans(n_relevant_vars), type='s', col='black')
+legend("top", c(index_names[1], index_names[2], index_names[3], index_names[4], "Average"),
+       col=c('orange', 'red', 'green', 'blueviolet', 'black'),
+       lwd=3, cex=0.7, horiz=TRUE)
 ```
 
-So the two tests agree on all indices but one:
-```{r}
-sw_reject <- which(pvalsw < 0.05)
-jb_reject <- which(pvaljb < 0.05)
-print(sw_reject)
-print(jb_reject)
-print(intersect(sw_reject, jb_reject))
-print(index_names[intersect(sw_reject, jb_reject)])
-```
+After running these tests, we get that the best datasets to consider are:
+Group1, Group2, Group4: Lag 1 all, and group indices up to Lag 3
+Group3: Lag 1 all, and cross terms of group indices
 
-# Building Baseline models
+-----
+# Models
+
+## Building Baseline models
 
 We want to start the forecasts from February 1st, 2020.
 
@@ -452,7 +721,6 @@ mse_pre <- colMeans(sq_errs_pre)
 mse_post <- colMeans(sq_errs_post)
 mse_overall <- colMeans(sq_errs[93:nrow(sq_errs),])
 mse_csv <- cbind(index_names, mse_pre, mse_post, mse_overall)
-# write.csv(mse_csv, "mse_rw.csv", row.names = FALSE )
 ```
 
 b) Heterogeneous Autoregressive (HAR) model: We can use 200 days (to account for recency) rolling window for our predictions?
@@ -486,20 +754,6 @@ for (s in 2:32){
   mse_har <- c(mse_har, mean(err))
 }
 plot(mse_har, main="Mse for each index with HAR Predictions")
-```
-
-```{r fig.width=5, fig.height=4,echo=FALSE}
-img <- readPNG("img/msehar.png")
-grid.newpage()
-grid.raster(img)
-```
-
-Comparing HAR mse (black) with Random Walk MSE (red) - in this case Random Walk does better.
-
-```{r fig.width=5, fig.height=4,echo=FALSE}
-img <- readPNG("img/mse2.png")
-grid.newpage()
-grid.raster(img)
 ```
 
 c) LASSO model: We can use 90 days (to account for recency) rolling window for our predictions.
@@ -544,136 +798,7 @@ for (j in 2:32){
 
 LASSO definitely seems better than Ridge. Still RW is better than LASSO.
 
-### Building Datasets
-
-```{r}
-realized_covariances <- fread('data/final_data.csv')
-dates <- realized_covariances[, c("Date")]
-realized_covariances <- realized_covariances[, -c("V1", "Date", "covars")]
-realized_covariances <- realized_covariances[, c(seq(3, 93, 3))]
-```
-
-```{r}
-group1 <- c(3, 4, 5, 8, 9, 20, 21, 22, 23, 24, 26)
-group2 <- c(1, 2, 6, 7, 11, 12, 15, 25, 27, 29, 31)
-group3 <- c(18, 28)
-group4 <- c(10, 13, 14, 16, 17, 19, 30)
-```
-
-first lag and second order terms
-
-```{r}
-group_ind <- group4
-n_rows <- nrow(realized_covariances)
-# First lag all
-x <- realized_covariances[1:(nrow(realized_covariances)-1), ]
-y <- realized_covariances[2:nrow(realized_covariances), ..group_ind]
-y_date <- dates[2:nrow(realized_covariances)]
-second_order_terms <- c()
-for (i in 1:nrow(x)) {
-  row <- unlist(x[i, ..group_ind])
-  outer_product <- outer(row, row)
-  flatten <- outer_product[lower.tri(outer_product, diag=TRUE)]
-  second_order_terms <- rbind(second_order_terms, flatten)
-}
-x <- cbind(x, second_order_terms)
-x <- cbind(y_date, x)
-y <- cbind(y_date, y)
-print(dim(x))
-print(dim(y))
-```
-
-Lags 
-```{r}
-group_ind <- group3
-lag <- 3
-n_rows <- nrow(realized_covariances) - lag
-# First lag all
-x <- realized_covariances[lag:(nrow(realized_covariances)-1), ]
-y <- realized_covariances[(lag+1):nrow(realized_covariances), ..group_ind]
-y_date <- dates[(lag+1):nrow(realized_covariances)]
-if (lag > 1) {
-  for (i in 2:lag) {
-    print(dim(x))
-    x <- cbind(x, realized_covariances[(lag+1-i):(nrow(realized_covariances)-i), ..group_ind])   
-  }  
-}
-x <- cbind(y_date, x)
-y <- cbind(y_date, y)
-print(dim(x))
-print(dim(y))
-```
-
-
-```{r}
-x<- realized_covariances
-window_length <- 90
-n_windows <- nrow(x) - window_length
-predictions <- matrix(0, nrow=n_windows, ncol=length(group_ind))
-coef_arr <- c()
-# For each realized covariance, train a LASSO model
-for (i in 1:length(group_ind)) {
-  coefs <- c()
-  for (j in 1:n_windows) {
-    x_data <- x[j:(j+window_length-1),]
-    y_data <- unlist(y[j:(j+window_length-1), ..i])
-    
-    lasso <- ic.glmnet(x_data, y_data, crit="aic")
-    
-    tau=1
-    first.step.coef=coef(lasso)[-1]
-    penalty.factor=(abs(first.step.coef)+1/sqrt(nrow(x_data)))^(-tau)
-    adalasso=ic.glmnet(x_data, y_data, crit="aic", penalty.factor=penalty.factor)
-    # size of coefs: no. of covariates * no. of windows
-    # Stores the lasso coefficients for every windows
-    coefs <- cbind(coefs, coef(adalasso))
-    
-    next_min_data <- x[j+window_length, ]
-    predictions[j, i] <- predict(adalasso, next_min_data) 
-  }
-  # coef_arr stores coefs for each of the 31 dependent variables
-  coef_arr[[i]] <- coefs
-}
-# Calculate the proportion of beta assigned to each predictor
-coef_arr_norm <- c()
-n_coefs_mat <- matrix(0, nrow=n_windows, ncol=length(group_ind))
-for (i in 1:length(group_ind)) {
-  coefs <- coef_arr[[i]]
-  # normalized_coefs is also of size no. of covariates * no. of windows
-  # except that every column has been normalized to add up to 1
-  normalized_coefs <- abs(coefs) %*% diag(1/colSums(abs(coefs)))
-  # Take average across all windows to get vector of length no. of covariates
-  # representing average proportion of beta on each covariate.
-  coef_arr_norm[[i]] <- rowMeans(normalized_coefs)
-  
-  n_coefs_mat[, i] <- colMeans(coefs != 0)
-}
-coef_mat <- matrix(0, nrow=(length(coef_arr_norm[[1]])), ncol=length(group_ind))
-for (i in 1:length(group_ind)) {
-  coef_mat[, i] <- coef_arr_norm[[i]]
-}
-actual_data <- y[(1+window_length):nrow(y),]
-col_mse <- colMeans((actual_data - predictions)**2)
-overall_mse <- mean(col_mse)
-print(col_mse)
-print(overall_mse)
-```
-
-```{r relevant_vars_graphs}
-n_relevant_vars <- fread("data/prop_sig_coef_per_window.csv")
-plot(unlist(n_relevant_vars[, 1]), type='s', col='orange', ylim=c(0, 1),
-     xlab='', ylab='Percentage of Relevant Variables', xaxt='n')
-axis(1, at=c(seq(1, 120, 20), 119), labels=substr(y_date[c(seq(1, 120, 20), 119)], 1, 7), las=1, cex.axis=0.95)
-lines(unlist(n_relevant_vars[, 2]), type='s', col='red')
-lines(unlist(n_relevant_vars[, 3]), type='s', col='green')
-lines(unlist(n_relevant_vars[, 4]), type='s', col='blueviolet')
-lines(rowMeans(n_relevant_vars), type='s', col='black')
-legend("top", c(index_names[1], index_names[2], index_names[3], index_names[4], "Average"),
-       col=c('orange', 'red', 'green', 'blueviolet', 'black'),
-       lwd=3, cex=0.7, horiz=TRUE)
-```
-
-# Simple Moving Average and Hybrid Model
+## Simple Moving Average and Hybrid Model
 
 ```{r eval = F}
 col <- c(1,seq(from=4, to=94, by = 3))
@@ -753,7 +878,389 @@ for (i in 1:31){
 }
 ```
 
-### Coverage Tests
+## Modified HAR (varying time and log scale)
+
+```{r}
+get_mses_har <- function(group_idx, har_days = c(5, 22)) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  idx_names <- colnames(x)
+  for(har_day in har_days) {
+    toAdd <- as.data.frame(rollmean(zoo(x[, 1:31]), har_day))
+    colnames(toAdd) <- paste0(idx_names, "_rm", har_day)
+    pad <- as.data.frame(matrix(NA, nrow = (har_day - 1), ncol = ncol(toAdd)))
+    colnames(pad) <- paste0(idx_names, "_rm", har_day)
+    toAdd <- rbind(pad, toAdd)
+    x <- cbind(x, toAdd) 
+  }
+  x <- x[(max(har_days):nrow(x)),]
+  x <- data.matrix(x)
+  y <- lagged_dataset[[2]]
+  y <- tail(y, nrow(x))
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  coef_arr <- c()
+  mse_grp <- 0
+
+  tmp_cnt <- 1
+  
+  for (i in group_idx) {
+    coefs <- c()
+    err <- c()
+
+    for (j in 1:n_windows) {
+      x_data <- x[j:(j+window_length),]
+      rel_cols <- seq(0, length(har_days)) * 31 + i
+      x_data <- data.frame(x_data) %>% select(rel_cols)
+      y_data <- unlist(y[j:(j+window_length-1), ..i])
+      
+      train_x <- x_data[1:(nrow(x_data) - 1),]
+      test_x <- x_data[nrow(x_data),]
+      
+      linear_mod <- lm(y_data ~ ., data = data.frame(train_x))
+      rv_pred <- sum(linear_mod$coefficients * c(1, as.numeric(test_x)), na.rm = TRUE)
+
+      rv_actual_val <-unlist(y[(j+window_length),..i])
+      
+      # check error only when the actual value is present
+      if (is.na(rv_actual_val) == FALSE){
+        err <- c(err, (rv_pred - rv_actual_val)^2)
+      }
+      
+      # size of coefs: no. of covariates * no. of windows
+      # Stores the lasso coefficients for every windows
+      coefs <- cbind(coefs, linear_mod$coefficients)
+    }
+    # coef_arr stores coefs for each of the 31 dependent variables
+    coef_arr[[tmp_cnt]] <- coefs
+    tmp_cnt <- tmp_cnt + 1
+    mse_grp <- cbind(mse_grp, err)
+  }
+  return(mse_grp)[, 2:(ncol(mse_grp))]
+}
+
+get_mses_har_ln <- function(group_idx, har_days = c(5, 22)) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  x <- data.frame(x)
+  x[x == 0] <- 1e-15
+  x <- log(x)
+  idx_names <- colnames(x)
+  for(har_day in har_days) {
+    toAdd <- as.data.frame(rollmean(zoo(x[, 1:31]), har_day))
+    colnames(toAdd) <- paste0(idx_names, "_rm", har_day)
+    pad <- as.data.frame(matrix(NA, nrow = (har_day - 1), ncol = ncol(toAdd)))
+    colnames(pad) <- paste0(idx_names, "_rm", har_day)
+    toAdd <- rbind(pad, toAdd)
+    x <- cbind(x, toAdd) 
+  }
+  x <- x[(max(har_days):nrow(x)),]
+  y <- lagged_dataset[[2]]
+  y <- tail(y, nrow(x))
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  coef_arr <- c()
+  mse_grp <- 0
+
+  tmp_cnt <- 1
+  
+  for (i in group_idx) {
+    coefs <- c()
+    err <- c()
+
+    for (j in 1:n_windows) {
+      x_data <- x[j:(j+window_length),]
+      rel_cols <- seq(0, length(har_days)) * 31 + i
+      x_data <- data.frame(x_data) %>% select(rel_cols)
+      y_data <- unlist(y[j:(j+window_length-1), ..i])
+      y_data[y_data == 0] <- 1e-15
+      y_data <- log(y_data)
+      
+      train_x <- x_data[1:(nrow(x_data) - 1),]
+      test_x <- x_data[nrow(x_data),]
+      
+      linear_mod <- lm(y_data ~ ., data = data.frame(train_x))
+      rv_pred <- exp(sum(linear_mod$coefficients * c(1, as.numeric(test_x)), na.rm = TRUE))
+
+      rv_actual_val <-unlist(y[(j+window_length),..i])
+      
+      # check error only when the actual value is present
+      if (is.na(rv_actual_val) == FALSE){
+        err <- c(err, (rv_pred - rv_actual_val)^2)
+      }
+      
+      # size of coefs: no. of covariates * no. of windows
+      # Stores the lasso coefficients for every windows
+      coefs <- cbind(coefs, linear_mod$coefficients)
+    }
+    # coef_arr stores coefs for each of the 31 dependent variables
+    coef_arr[[tmp_cnt]] <- coefs
+    tmp_cnt <- tmp_cnt + 1
+    mse_grp <- cbind(mse_grp, err)
+  }
+  return(mse_grp)[, 2:(ncol(mse_grp))]
+}
+
+#############################################################################
+
+split_mses <- function(mses, max_har_days, start_idx = 2) {
+  split_idx <- which(all_dates == '2020-02-01') - 90 - max_har_days
+  post_feb <- mses[split_idx:(nrow(mses)),]
+  toRet <- cbind(colMeans(post_feb), colMeans(mses))
+  return(toRet[start_idx:nrow(toRet),])
+}
+
+#############################################################################
+
+h_days_1 <- c(5, 22)
+grp1_res_har_5_22 <- get_mses_har(group_idx = group1_idx, har_days = h_days_1)
+grp1_res_har_ln_5_22 <- get_mses_har_ln(group_idx = group1_idx, har_days = h_days_1)
+grp1_5_22 <- cbind(split_mses(grp1_res_har_5_22, 22), split_mses(grp1_res_har_ln_5_22, 22))
+grp2_res_har_5_22 <- get_mses_har(group_idx = group2_idx, har_days = h_days_1)
+grp2_res_har_ln_5_22 <- get_mses_har_ln(group_idx = group2_idx, har_days = h_days_1)
+grp2_5_22 <- cbind(split_mses(grp2_res_har_5_22, 22), split_mses(grp2_res_har_ln_5_22, 22))
+grp3_res_har_5_22 <- get_mses_har(group_idx = group3_idx, har_days = h_days_1)
+grp3_res_har_ln_5_22 <- get_mses_har_ln(group_idx = group3_idx, har_days = h_days_1)
+grp3_5_22 <- cbind(split_mses(grp3_res_har_5_22, 22), split_mses(grp3_res_har_ln_5_22, 22))
+grp4_res_har_5_22 <- get_mses_har(group_idx = group4_idx, har_days = h_days_1)
+grp4_res_har_ln_5_22 <- get_mses_har_ln(group_idx = group4_idx, har_days = h_days_1)
+grp4_5_22 <- cbind(split_mses(grp4_res_har_5_22, 22), split_mses(grp4_res_har_ln_5_22, 22))
+
+h_days_2 <- c(3, 5)
+grp1_res_har_3_5 <- get_mses_har(group_idx = group1_idx, har_days = h_days_2)
+grp1_res_har_ln_3_5 <- get_mses_har_ln(group_idx = group1_idx, har_days = h_days_2)
+grp1_3_5 <- cbind(split_mses(grp1_res_har_3_5, 5), split_mses(grp1_res_har_ln_3_5, 5))
+grp2_res_har_3_5 <- get_mses_har(group_idx = group2_idx, har_days = h_days_2)
+grp2_res_har_ln_3_5 <- get_mses_har_ln(group_idx = group2_idx, har_days = h_days_2)
+grp2_3_5 <- cbind(split_mses(grp2_res_har_3_5, 5), split_mses(grp2_res_har_ln_3_5, 5))
+grp3_res_har_3_5 <- get_mses_har(group_idx = group3_idx, har_days = h_days_2)
+grp3_res_har_ln_3_5 <- get_mses_har_ln(group_idx = group3_idx, har_days = h_days_2)
+grp3_3_5 <- cbind(split_mses(grp3_res_har_3_5, 5), split_mses(grp3_res_har_ln_3_5, 5))
+grp4_res_har_3_5 <- get_mses_har(group_idx = group4_idx, har_days = h_days_2)
+grp4_res_har_ln_3_5 <- get_mses_har_ln(group_idx = group4_idx, har_days = h_days_2)
+grp4_3_5 <- cbind(split_mses(grp4_res_har_3_5, 5), split_mses(grp4_res_har_ln_3_5, 5))
+
+h_days_3 <- c(5, 10, 22)
+grp1_res_har_5_10_22 <- get_mses_har(group_idx = group1_idx, har_days = h_days_3)
+grp1_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group1_idx, har_days = h_days_3)
+grp1_5_10_22 <- cbind(split_mses(grp1_res_har_5_10_22, 22), split_mses(grp1_res_har_ln_5_10_22, 22))
+grp2_res_har_5_10_22 <- get_mses_har(group_idx = group2_idx, har_days = h_days_3)
+grp2_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group2_idx, har_days = h_days_3)
+grp2_5_10_22 <- cbind(split_mses(grp2_res_har_5_10_22, 22), split_mses(grp2_res_har_ln_5_10_22, 22))
+grp3_res_har_5_10_22 <- get_mses_har(group_idx = group3_idx, har_days = h_days_3)
+grp3_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group3_idx, har_days = h_days_3)
+grp3_5_10_22 <- cbind(split_mses(grp3_res_har_5_10_22, 22), split_mses(grp3_res_har_ln_5_10_22, 22))
+grp4_res_har_ln_5_10_22 <- get_mses_har_ln(group_idx = group4_idx, har_days = h_days_3)
+grp4_res_har_5_10_22 <- get_mses_har(group_idx = group4_idx, har_days = h_days_3)
+grp4_5_10_22 <- cbind(split_mses(grp4_res_har_5_10_22, 22), split_mses(grp4_res_har_ln_5_10_22, 22))
+
+h_days_4 <- c(3, 5, 10, 22)
+grp1_res_har_3_5_10_22 <- get_mses_har(group_idx = group1_idx, har_days = h_days_4)
+grp1_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group1_idx, har_days = h_days_4)
+grp1_3_5_10_22 <- cbind(split_mses(grp1_res_har_3_5_10_22, 22), split_mses(grp1_res_har_ln_3_5_10_22, 22))
+grp2_res_har_3_5_10_22 <- get_mses_har(group_idx = group2_idx, har_days = h_days_4)
+grp2_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group2_idx, har_days = h_days_4)
+grp2_3_5_10_22 <- cbind(split_mses(grp2_res_har_3_5_10_22, 22), split_mses(grp2_res_har_ln_3_5_10_22, 22))
+grp3_res_har_3_5_10_22 <- get_mses_har(group_idx = group3_idx, har_days = h_days_4)
+grp3_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group3_idx, har_days = h_days_4)
+grp3_3_5_10_22 <- cbind(split_mses(grp3_res_har_3_5_10_22, 22), split_mses(grp3_res_har_ln_3_5_10_22, 22))
+grp4_res_har_3_5_10_22 <- get_mses_har(group_idx = group4_idx, har_days = h_days_4)
+grp4_res_har_ln_3_5_10_22 <- get_mses_har_ln(group_idx = group4_idx, har_days = h_days_4)
+grp4_3_5_10_22 <- cbind(split_mses(grp4_res_har_3_5_10_22, 22), split_mses(grp4_res_har_ln_3_5_10_22, 22))
+
+allgrp1_har <- cbind(grp1_5_22, grp1_3_5, grp1_5_10_22, grp1_3_5_10_22)
+write.csv(data.frame(allgrp1_har), "grp1.csv", row.names = FALSE)
+allgrp2_har <- cbind(grp2_5_22, grp2_3_5, grp2_5_10_22, grp2_3_5_10_22)
+write.csv(data.frame(allgrp2_har), "grp2.csv", row.names = FALSE)
+allgrp3_har <- cbind(grp3_5_22, grp3_3_5, grp3_5_10_22, grp3_3_5_10_22)
+write.csv(data.frame(allgrp3_har), "grp3.csv", row.names = FALSE)
+allgrp4_har <- cbind(grp4_5_22, grp4_3_5, grp4_5_10_22, grp4_3_5_10_22)
+write.csv(data.frame(allgrp4_har), "grp4.csv", row.names = FALSE)
+```
+
+# Modified HAR (residuals)
+
+```{r}
+get_mses_har_ln_resid <- function(group_idx, har_days = c(3, 5)) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  x <- data.frame(x)
+  x[x == 0] <- 1e-15
+  x <- log(x)
+  idx_names <- colnames(x)
+  for(har_day in har_days) {
+    toAdd <- as.data.frame(rollmean(zoo(x[, 1:31]), har_day))
+    colnames(toAdd) <- paste0(idx_names, "_rm", har_day)
+    pad <- as.data.frame(matrix(NA, nrow = (har_day - 1), ncol = ncol(toAdd)))
+    colnames(pad) <- paste0(idx_names, "_rm", har_day)
+    toAdd <- rbind(pad, toAdd)
+    x <- cbind(x, toAdd) 
+  }
+  x <- x[(max(har_days):nrow(x)),]
+  y <- lagged_dataset[[2]]
+  y <- tail(y, nrow(x))
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  coef_arr <- c()
+  mse_grp <- 0
+
+  tmp_cnt <- 1
+  
+  for (i in group_idx) {
+    coefs <- c()
+    err <- c()
+    err_rw <- c()
+    
+    for (j in 1:n_windows) {
+      x_data <- x[j:(j+window_length),]
+      rel_cols <- seq(0, length(har_days)) * 31 + i
+      x_data1 <- data.frame(x_data) %>% select(rel_cols)
+      x_data2 <- select(data.frame(x_data), -rel_cols)
+      y_data <- unlist(y[j:(j+window_length-1), ..i])
+      y_data1 <- y_data
+      y_data1[y_data1 == 0] <- 1e-15
+      y_data1 <- log(y_data1)
+      
+      train_x1 <- x_data1[1:(nrow(x_data1) - 1),]
+      test_x1 <- x_data1[nrow(x_data1),]
+      linear_mod <- lm(y_data1 ~ ., data = data.frame(train_x1))
+      resid <- y_data - exp(linear_mod$fitted.values)
+      train_x2 <- x_data2[1:(nrow(x_data2) - 1),]
+      test_x2 <- x_data2[nrow(x_data2),]
+      linear_mod_resid <- lm(resid ~ ., data = data.frame(train_x2))
+      
+      rv_pred <- exp(sum(linear_mod$coefficients * c(1, as.numeric(test_x1)), na.rm = TRUE))
+                     + sum(linear_mod_resid$coefficients * c(1, as.numeric(test_x2)), na.rm = TRUE)
+      
+      rv_actual_val <-unlist(y[(j+window_length),..i])
+      
+      # check error only when the actual value is present
+      if (is.na(rv_actual_val) == FALSE){
+        err <- c(err, (rv_pred - rv_actual_val)^2)
+      }
+      
+      # size of coefs: no. of covariates * no. of windows
+      # Stores the lasso coefficients for every windows
+      coefs <- cbind(coefs, linear_mod$coefficients)
+    }
+    # coef_arr stores coefs for each of the 31 dependent variables
+    coef_arr[[tmp_cnt]] <- coefs
+    tmp_cnt <- tmp_cnt + 1
+    mse_grp <- cbind(mse_grp, err)
+  }
+  return(mse_grp)[, 2:(ncol(mse_grp))]
+}
+
+get_mses_har_ln_resid2 <- function(group_idx, har_days = c(3, 5)) {
+  lag <- 1
+  lagged_dataset <- make_lagged_dataset(lag)
+  x <- lagged_dataset[[1]]
+  x <- data.frame(x)
+  
+  x[x == 0] <- 1e-15
+  x <- log(x)
+  idx_names <- colnames(x)
+  for(har_day in har_days) {
+    toAdd <- as.data.frame(rollmean(zoo(x[, 1:31]), har_day))
+    colnames(toAdd) <- paste0(idx_names, "_rm", har_day)
+    pad <- as.data.frame(matrix(NA, nrow = (har_day - 1), ncol = ncol(toAdd)))
+    colnames(pad) <- paste0(idx_names, "_rm", har_day)
+    toAdd <- rbind(pad, toAdd)
+    x <- cbind(x, toAdd) 
+  }
+  x <- x[(max(har_days):nrow(x)),]
+
+  y <- lagged_dataset[[2]]
+  y <- tail(y, nrow(x))
+  
+  window_length <- 90
+  n_windows <- nrow(x) - window_length
+  coef_arr <- c()
+  mse_grp <- 0
+
+  tmp_cnt <- 1
+  
+  for (i in group_idx) {
+    coefs <- c()
+    err <- c()
+
+    for (j in 1:n_windows) {
+      x_data <- x[j:(j+window_length),]
+      rel_cols <- seq(0, length(har_days)) * 31 + i
+      x_data1 <- data.frame(x_data) %>% select(rel_cols)
+      y_data <- unlist(y[j:(j+window_length-1), ..i])
+      y_data1 <- y_data
+      y_data1[y_data1 == 0] <- 1e-15
+      y_data1 <- log(y_data1)
+      
+      
+      #print(head(x_data))
+      #toRet <- list()
+      #toRet[[1]] <- x_data
+      #toRet[[2]] <- y_data
+      #return(toRet)
+      
+      train_x1 <- x_data1[1:(nrow(x_data1) - 1),]
+      test_x1 <- x_data1[nrow(x_data1),]
+      linear_mod <- lm(y_data1 ~ ., data = data.frame(train_x1))
+      
+      resid <- y_data - exp(linear_mod$fitted.values)
+      train_x2 <- train_x1^2
+      test_x2 <- test_x1^2
+      linear_mod_resid <- lm(resid ~ ., data = data.frame(train_x2))
+      
+      rv_pred <- exp(sum(linear_mod$coefficients * c(1, as.numeric(test_x1)), na.rm = TRUE))
+      + sum(linear_mod_resid$coefficients * c(1, as.numeric(test_x2)), na.rm = TRUE)
+
+      rv_actual_val <-unlist(y[(j+window_length),..i])
+      
+      # check error only when the actual value is present
+      if (is.na(rv_actual_val) == FALSE){
+        err <- c(err, (rv_pred - rv_actual_val)^2)
+      }
+      
+      # size of coefs: no. of covariates * no. of windows
+      # Stores the lasso coefficients for every windows
+      coefs <- cbind(coefs, linear_mod$coefficients)
+    }
+    # coef_arr stores coefs for each of the 31 dependent variables
+    coef_arr[[tmp_cnt]] <- coefs
+    tmp_cnt <- tmp_cnt + 1
+    mse_grp <- cbind(mse_grp, err)
+  }
+  return(mse_grp)[, 2:(ncol(mse_grp))]
+}
+
+#############################################################################
+
+grp1_res_har_ln_resid <- get_mses_har_ln_resid(group1_idx)
+grp1_res_har_ln_resid2 <- get_mses_har_ln_resid2(group1_idx)
+grp1_resid <- cbind(split_mses(grp1_res_har_ln_resid, 5), split_mses(grp1_res_har_ln_resid2, 5))
+grp2_res_har_ln_resid <- get_mses_har_ln_resid(group2_idx)
+grp2_res_har_ln_resid2 <- get_mses_har_ln_resid2(group2_idx)
+grp2_resid <- cbind(split_mses(grp2_res_har_ln_resid, 5), split_mses(grp2_res_har_ln_resid2, 5))
+grp3_res_har_ln_resid <- get_mses_har_ln_resid(group3_idx)
+grp3_res_har_ln_resid2 <- get_mses_har_ln_resid2(group3_idx)
+grp3_resid <- cbind(split_mses(grp3_res_har_ln_resid, 5), split_mses(grp3_res_har_ln_resid2, 5))
+grp4_res_har_ln_resid <- get_mses_har_ln_resid(group4_idx)
+grp4_res_har_ln_resid2 <- get_mses_har_ln_resid2(group4_idx)
+grp4_resid <- cbind(split_mses(grp4_res_har_ln_resid, 5), split_mses(grp4_res_har_ln_resid2, 5))
+
+write.csv(data.frame(grp1_resid), "grp1_resid.csv", row.names = FALSE)
+write.csv(data.frame(grp2_resid), "grp2_resid.csv", row.names = FALSE)
+write.csv(data.frame(grp3_resid), "grp3_resid.csv", row.names = FALSE)
+write.csv(data.frame(grp4_resid), "grp4_resid.csv", row.names = FALSE)
+```
+
+\newpage
+
+# Coverage Tests
 
 ```{r create_return_files}
 final_data <- fread("data/final_data.csv")
@@ -772,44 +1279,17 @@ colnames(returns) <- index_names
 write.csv(returns, "log_returns.csv", row.names = FALSE)
 ```
 
-```{r create_return_files_2}
-final_data <- fread("data/final_data.csv")
-dates <- final_data[, 2]
-final_data  <- final_data[, -c(1, 2, 96)]
-returns <- c()
-for (k in 0:30) {
-  closing_col <- 3*k + 2
-  closing <- unlist(final_data[, ..closing_col])
-  index_returns <- diff(log(closing))
-  returns <- cbind(returns, index_returns)
-}
-colnames(returns) <- index_names
-write.csv(returns, "log_returns_closing.csv", row.names = FALSE)
-```
-
-
-```{r}
-boosted_trees_predictions <- fread("data/boosted_tree_predictions.csv")
-random_forest_predictions <- fread("data/random_forest_predictions.csv")
-```
-
-### Kupiec Tests
 ```{r kupiec_tests}
-normal_returns <- fread("data/normal_returns.csv")
 log_returns <- fread("data/log_returns.csv")
-log_returns_c <- fread("data/log_returns_closing.csv")
-normal_returns_feb_start <- which(normal_returns$Date == '2/1/2020')
-post_feb_normal_returns <- normal_returns[normal_returns_feb_start:nrow(normal_returns), c(-1)]
 log_returns_feb_start <- which(log_returns$Date == '2/1/2020')
 post_feb_log_returns <- log_returns[log_returns_feb_start:nrow(log_returns), c(-1)]
-log_returns_c_feb_start <- which(log_returns_c$Date == '2/1/2020')
-post_feb_log_returns_c <- log_returns[log_returns_c_feb_start:nrow(log_returns_c), c(-1)]
 index_names <- c("AEX", "AORD", "BFX", "BSESN", "BVLG", "BVSP", "DJI", "FCHI", "FTMIB", "FTSE",
                  "GDAXI", "GSPTSE", "HSI", "IBEX", "IXIC", "KS11", "KSE", "MXX", "N225",
                  "NSEI", "OMXC20", "OMXHPI", "OMXSPI", "OSEAX", "RUT", "SMSI", "SPX", "SSEC",
                  "SSMI", "STI", "STOXX50E")
 ```
 
+## Kupiec Tests
 
 ```{r}
 kupiec_test <- function(returns, preds) {
@@ -823,6 +1303,7 @@ kupiec_test <- function(returns, preds) {
 } 
 ```
 
+## Traffic Light Test
 ```{r}
 traffic_light_test <- function(returns, preds) {
   vars <- qnorm(0.05)*sqrt(preds)
@@ -855,16 +1336,7 @@ traffic_light_test <- function(returns, preds) {
 }
 ```
 
-
-```{r}
-kupiec_test(post_feb_log_returns, tail(random_forest_predictions[, c(-1)], 58))
-```
-
-```{r}
-traffic_light_test(post_feb_log_returns, tail(random_forest_predictions[, c(-1)], 58))
-```
-
-Graphs
+## Creating VaR Graphs
 
 ```{r read_all_preds_data}
 returns <- fread('data/log_returns_closing.csv')
