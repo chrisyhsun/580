@@ -11,7 +11,7 @@ library(data.table)
 
 
 ```{r}
-data <- fread('data/data.csv')
+data <- fread('data/data2804.csv')
 data1 <- data[!Symbol %in%  c(".SPX", ".IBEX")]
 data_spx <- data[Symbol == ".SPX"]
 data_ibex <- data[Symbol == ".IBEX"]
@@ -88,6 +88,6 @@ intersect(dates1, dates2)
 Write to file.
 
 ```{r}
-write.csv(data, "data/data.csv", row.names=FALSE)
+write.csv(data, "data/data2804.csv", row.names=FALSE)
 ```
 

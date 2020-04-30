@@ -696,10 +696,10 @@ traffic_light_test <- function(returns, preds) {
 
 
 ```{r}
-kupiec_test(post_feb_log_returns, tail(boosted_trees_predictions[, c(-1)], 58))
+kupiec_test(post_feb_log_returns, tail(random_forest_predictions[, c(-1)], 58))
 ```
 
 ```{r}
-traffic_light_test(post_feb_log_returns, tail(boosted_trees_predictions[, c(-1)], 58))
+traffic_light_test(post_feb_log_returns, tail(random_forest_predictions[, c(-1)], 58))
 ```
 
